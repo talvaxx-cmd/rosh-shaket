@@ -1,0 +1,104 @@
+@import "tailwindcss";
+
+/*
+ * ראש שקט — calm, light, one accent color, generous spacing, large text.
+ * Item type is never shown by color alone: events carry a time bar + label,
+ * tasks carry a checkbox + label.
+ */
+@theme {
+  --font-sans: "Rubik", "Assistant", "Segoe UI", "Arial Hebrew", system-ui, sans-serif;
+
+  --color-bg: #f6f5f1;
+  --color-surface: #ffffff;
+  --color-sunken: #efede7;
+  --color-ink: #1b2220;
+  --color-muted: #56615d;
+  --color-faint: #8a938f;
+  --color-line: #e2dfd7;
+
+  --color-accent: #2c6b5e;
+  --color-accent-strong: #1f5247;
+  --color-accent-soft: #e2efea;
+  --color-on-accent: #ffffff;
+
+  --color-warn: #8a5300;
+  --color-warn-soft: #fff1d6;
+  --color-warn-line: #f0d29a;
+  --color-danger: #a8261c;
+  --color-danger-soft: #fde8e6;
+
+  --radius-card: 1.25rem;
+}
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+  }
+  body {
+    background: var(--color-bg);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    font-size: 1.0625rem;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+  :focus-visible {
+    outline: 3px solid var(--color-accent);
+    outline-offset: 2px;
+    border-radius: 0.5rem;
+  }
+  input,
+  select,
+  textarea,
+  button {
+    font: inherit;
+    color: inherit;
+  }
+  /* Times and dates read left-to-right inside RTL text. */
+  .ltr-nums {
+    direction: ltr;
+    unicode-bidi: isolate;
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+@keyframes pulse-ring {
+  0% {
+    box-shadow: 0 0 0 0 rgb(44 107 94 / 0.45);
+  }
+  70% {
+    box-shadow: 0 0 0 22px rgb(44 107 94 / 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgb(44 107 94 / 0);
+  }
+}
+.recording-pulse {
+  animation: pulse-ring 1.6s ease-out infinite;
+}
+
+@keyframes toast-in {
+  from {
+    transform: translateY(12px);
+    opacity: 0;
+  }
+  to {
+    transform: none;
+    opacity: 1;
+  }
+}
+.toast-in {
+  animation: toast-in 0.18s ease-out;
+}
