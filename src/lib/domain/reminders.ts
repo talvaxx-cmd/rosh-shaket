@@ -1,6 +1,6 @@
 import { addMinutes, hmToMinutes, toHm, toYmd, zonedToInstant, addDaysYmd, formatDurationHe } from "../time";
 import { occurrencesInRange } from "./recurrence";
-import { touch, type Op } from "./store-core";
+import { newId, touch, type Op } from "./store-core";
 import type { AppState, CalendarEvent, Preferences, Reminder, Task } from "./types";
 
 export interface DueNotification {
@@ -33,6 +33,14 @@ export function afterQuietHours(at: Date, prefs: Preferences): Date {
   const ymd = toYmd(at, tz);
   const todayEnd = zonedToInstant(ymd, prefs.quietEnd, tz);
   return todayEnd > at ? todayEnd : zonedToInstant(addDaysYmd(ymd, 1), prefs.quietEnd, tz);
+}
+
+/**
+ * A reminder at the item's own time (or at a set instant) is exactly what was asked for,
+ * so quiet hours don't delay it. Only advance warnings wait for quiet hours to end.
+ */
+function fireTime(at: Date, r: Reminder, prefs: Preferences): Date {
+  return r.rule.type === "before" && r.rule.minutes > 0 ? afterQuietHours(at, prefs) : at;
 }
 
 /** The next time this reminder should fire after `after`, ignoring snooze. */
@@ -98,7 +106,7 @@ export function dueNotifications(state: AppState, now: Date): DueNotification[] 
     } else {
       const next = nextFireTime(state, r, lastShown);
       if (next) {
-        fireAt = afterQuietHours(next.at, state.prefs);
+        fireAt = fireTime(next.at, r, state.prefs);
         occurrenceStart = next.occurrenceStart;
       }
     }
@@ -126,7 +134,7 @@ export function nextWakeUp(state: AppState, now: Date): Date | null {
     else {
       const last = item.lastShownAt ? new Date(item.lastShownAt) : now;
       const n = nextFireTime(state, item, last > now ? last : now);
-      at = n ? afterQuietHours(n.at, state.prefs) : null;
+      at = n ? fireTime(n.at, item, state.prefs) : null;
     }
     if (at && at > now && (!best || at < best)) best = at;
   }
@@ -139,6 +147,34 @@ export function markShownOp(state: AppState, ids: string[], now: Date, opId: str
     .filter((r): r is Reminder => r?.kind === "reminder")
     .map((r) => touch(r, now, { lastShownAt: now.toISOString(), state: r.state === "snoozed" ? "pending" : r.state, snoozedUntil: undefined }));
   return { opId, label: "הצגת תזכורת", source: "system", put };
+}
+
+/**
+ * Adds the default reminders to upcoming timed items that have none, so items saved
+ * before reminders were automatic also ring. Past and untimed items are left alone.
+ */
+export function addMissingRemindersOp(state: AppState, minutes: number[], now: Date, opId: string): Op {
+  const iso = now.toISOString();
+  const hasReminder = new Set<string>();
+  for (const i of Object.values(state.items)) if (i.kind === "reminder") hasReminder.add(i.target.id);
+  const put: Reminder[] = [];
+  for (const i of Object.values(state.items)) {
+    if (hasReminder.has(i.id)) continue;
+    let kind: "event" | "task";
+    if (i.kind === "event") {
+      const upcoming = i.recurrence ? occurrencesInRange(i, now, addMinutes(now, 60 * 24 * 400)).length > 0 : new Date(i.start) > now;
+      if (!upcoming) continue;
+      kind = "event";
+    } else if (i.kind === "task") {
+      const anchor = i.scheduled?.start ?? (i.dueIsDateOnly ? undefined : i.due);
+      if (i.status !== "open" || !anchor || new Date(anchor) <= now) continue;
+      kind = "task";
+    } else continue;
+    for (const m of minutes) {
+      put.push({ id: newId("r"), kind: "reminder", target: { kind, id: i.id }, rule: { type: "before", minutes: m }, channel: "notification", state: "pending", createdAt: iso, updatedAt: iso });
+    }
+  }
+  return { opId, label: "נוספו תזכורות", source: "manual", put };
 }
 
 export function snoozeOp(r: Reminder, minutes: number, now: Date, opId: string): Op {

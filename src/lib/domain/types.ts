@@ -134,6 +134,8 @@ export interface Preferences {
   saveDraftsLocally: boolean;
   /** Save clear items right away (no review card), with undo. Unclear ones still ask. */
   autoSave: boolean;
+  /** Reminders added to anything with a time when none were asked for (minutes before; 0 = at the time). */
+  defaultReminders: number[];
   onboarded: boolean;
 }
 
@@ -152,6 +154,7 @@ export const DEFAULT_PREFERENCES: Preferences = {
   hideNotificationContent: false,
   saveDraftsLocally: true,
   autoSave: true,
+  defaultReminders: [0],
   onboarded: false,
 };
 

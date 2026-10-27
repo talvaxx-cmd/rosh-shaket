@@ -202,7 +202,7 @@ function AddInner() {
   /** Saves and goes home; returns false (and shows why) if storage failed. */
   function saveDrafts(list: DraftItem[]): boolean {
     setSaveError(null);
-    const op = draftsToOp(list, { opId: opId.current, timeZone: tz, now: new Date(), source: source.current, defaultTaskMin: prefs.defaultTaskMin });
+    const op = draftsToOp(list, { opId: opId.current, timeZone: tz, now: new Date(), source: source.current, defaultTaskMin: prefs.defaultTaskMin, defaultReminders: prefs.defaultReminders });
     try {
       const applied = actions.dispatch(op);
       clearDraft();

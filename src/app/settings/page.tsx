@@ -2,10 +2,11 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { Button, Card, Field, Icon, Notice, PageHeader, SectionTitle, inputClass } from "@/components/ui";
+import { Button, Card, Chip, Field, Icon, Notice, PageHeader, SectionTitle, inputClass } from "@/components/ui";
 import { PushSection } from "@/components/PushSection";
 import { SyncSection } from "@/components/SyncSection";
-import { emptyState } from "@/lib/domain/store-core";
+import { addMissingRemindersOp } from "@/lib/domain/reminders";
+import { emptyState, newId } from "@/lib/domain/store-core";
 import type { Preferences } from "@/lib/domain/types";
 import { notificationPermission, requestNotificationPermission, showNotification, type PermissionState } from "@/lib/client/notifications";
 import { useActions, useAppState } from "@/lib/client/store";
@@ -20,6 +21,50 @@ function Toggle({ id, label, hint, checked, onChange }: { id: string; label: str
       </span>
       <input id={id} type="checkbox" role="switch" checked={checked} onChange={(e) => onChange(e.target.checked)} className="mt-1 h-6 w-6 shrink-0 accent-[var(--color-accent)]" />
     </label>
+  );
+}
+
+const AUTO_REMINDER_CHOICES = [
+  { m: 0, label: "בשעה עצמה" },
+  { m: 10, label: "10 דק׳ לפני" },
+  { m: 30, label: "חצי שעה לפני" },
+  { m: 60, label: "שעה לפני" },
+];
+
+/** Which reminders every timed item gets automatically, and a one-tap fix for items saved before. */
+function AutoReminders() {
+  const state = useAppState();
+  const actions = useActions();
+  const chosen = state.prefs.defaultReminders;
+  const missing = addMissingRemindersOp(state, chosen.length ? chosen : [0], new Date(), "preview").put?.length ?? 0;
+  const toggle = (m: number) => {
+    const next = chosen.includes(m) ? chosen.filter((x) => x !== m) : [...chosen, m].sort((a, b) => b - a);
+    actions.setPrefs({ defaultReminders: next });
+  };
+  return (
+    <div className="grid gap-2">
+      <p className="font-medium">תזכורת אוטומטית לכל דבר עם שעה</p>
+      <div className="flex flex-wrap gap-2">
+        {AUTO_REMINDER_CHOICES.map((c) => (
+          <Chip key={c.m} active={chosen.includes(c.m)} onClick={() => toggle(c.m)}>
+            {c.label}
+          </Chip>
+        ))}
+      </div>
+      <p className="text-sm text-muted">
+        {chosen.length
+          ? "כל פגישה או משימה עם שעה מקבלת את התזכורות האלה, גם בלי לבקש. תזכורת ״בשעה עצמה״ מצלצלת גם בשעות השקטות."
+          : "כבוי — תזכורת תיווצר רק כשמבקשים אותה (למשל ״תזכיר לי חצי שעה לפני״)."}
+      </p>
+      {missing > 0 && chosen.length > 0 && (
+        <Button
+          size="sm"
+          onClick={() => actions.run(addMissingRemindersOp(state, chosen, new Date(), newId("op")), "נוספו תזכורות לדברים שכבר ביומן")}
+        >
+          <Icon.Bell size={18} /> להוסיף תזכורות לדברים שכבר ביומן
+        </Button>
+      )}
+    </div>
   );
 }
 
@@ -152,6 +197,7 @@ export default function SettingsPage() {
           </Button>
         </div>
         {testResult && <Notice>{testResult}</Notice>}
+        <AutoReminders />
         <div className="grid grid-cols-2 gap-3">
           <Field label="שעות שקטות מ־" htmlFor="qs">
             <input id="qs" type="time" className={`${inputClass} ltr-nums`} value={p.quietStart} onChange={(e) => set({ quietStart: e.target.value })} />

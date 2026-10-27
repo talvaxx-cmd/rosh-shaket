@@ -139,7 +139,7 @@ export function draftConflicts(state: AppState, d: DraftItem, tz: string) {
 /** Turns confirmed drafts into one atomic, idempotent operation. */
 export function draftsToOp(
   drafts: DraftItem[],
-  opts: { opId: string; timeZone: string; now: Date; source: ItemSource; defaultTaskMin: number },
+  opts: { opId: string; timeZone: string; now: Date; source: ItemSource; defaultTaskMin: number; defaultReminders?: number[] },
 ): Op {
   const { timeZone: tz, now, source } = opts;
   const iso = now.toISOString();
@@ -147,6 +147,8 @@ export function draftsToOp(
   for (const d of drafts) refToId.set(d.ref, newId(d.kind === "event" ? "e" : d.kind === "task" ? "t" : "u"));
 
   const put: Item[] = [];
+  // Anything with a time gets a reminder, even when none was asked for.
+  const remindersOf = (d: DraftItem) => (d.reminderMinutesBefore.length ? d.reminderMinutesBefore : (opts.defaultReminders ?? []));
   for (const d of drafts) {
     const id = refToId.get(d.ref)!;
     const recurrence = d.recurrence
@@ -172,7 +174,7 @@ export function draftsToOp(
         updatedAt: iso,
       };
       put.push(ev);
-      for (const minutes of d.reminderMinutesBefore) put.push(reminder(id, "event", minutes, iso));
+      for (const minutes of remindersOf(d)) put.push(reminder(id, "event", minutes, iso));
     } else if (d.kind === "task") {
       let due: string | undefined;
       let dueIsDateOnly = false;
@@ -204,7 +206,7 @@ export function draftsToOp(
         updatedAt: iso,
       };
       put.push(task);
-      if (due && !dueIsDateOnly) for (const minutes of d.reminderMinutesBefore) put.push(reminder(id, "task", minutes, iso));
+      if (due && !dueIsDateOnly) for (const minutes of remindersOf(d)) put.push(reminder(id, "task", minutes, iso));
     } else {
       const u: Unresolved = {
         id,
