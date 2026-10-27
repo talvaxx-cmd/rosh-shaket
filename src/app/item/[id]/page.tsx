@@ -3,7 +3,7 @@
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useMemo, useState } from "react";
 import { Button, Card, Chip, Empty, Field, Icon, KindBadge, Notice, PageHeader, inputClass } from "@/components/ui";
-import { conflictsWith } from "@/lib/domain/agenda";
+import { conflictsWith, taskDueYmd } from "@/lib/domain/agenda";
 import { describeRecurrenceHe, occurrencesInRange } from "@/lib/domain/recurrence";
 import { reminderLabelHe } from "@/lib/domain/reminders";
 import {
@@ -235,7 +235,7 @@ function TaskView({ task }: { task: Task }) {
   const actions = useActions();
   const router = useRouter();
   const tz = state.prefs.timeZone;
-  const dueDate = task.due ? toYmd(new Date(new Date(task.due).getTime() - (task.dueIsDateOnly ? 1 : 0)), tz) : "";
+  const dueDate = taskDueYmd(task, tz) ?? "";
   const [title, setTitle] = useState(task.title);
   const [date, setDate] = useState(dueDate);
   const [time, setTime] = useState(task.due && !task.dueIsDateOnly ? toHm(new Date(task.due), tz) : "");

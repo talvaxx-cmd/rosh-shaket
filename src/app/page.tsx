@@ -4,7 +4,8 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import { AgendaRow } from "@/components/AgendaRow";
 import { Button, Card, Empty, Icon, LinkButton, Notice, SectionTitle } from "@/components/ui";
-import { agendaForDay } from "@/lib/domain/agenda";
+import { agendaForDay, todayTasks } from "@/lib/domain/agenda";
+import { completeTaskOp, newId } from "@/lib/domain/store-core";
 import { attention } from "@/lib/domain/attention";
 import { useActions, useAppState, useNow } from "@/lib/client/store";
 import { defaultTimeZone, formatYmdHe, toHm, toYmd, zonedParts } from "@/lib/time";
@@ -18,6 +19,7 @@ function greeting(hour: number) {
 }
 
 const ZONE_ACK_KEY = "rosh-shaket:zone-ack";
+const UNDATED_LIMIT = 5;
 
 function ZoneBanner() {
   const state = useAppState();
@@ -62,6 +64,8 @@ export default function TodayPage() {
 
   const agenda = useMemo(() => agendaForDay(state, today, tz).filter((e) => e.type === "event" || e.task.status !== "dropped"), [state, today, tz]);
   const att = useMemo(() => attention(state, now), [state, now]);
+  const todo = useMemo(() => todayTasks(state, today, tz, now), [state, today, tz, now]);
+  const actions = useActions();
 
   const current = agenda.filter((e) => new Date(e.start) <= now && now < new Date(e.end));
   const upcoming = agenda.filter((e) => new Date(e.start) > now);
@@ -119,17 +123,37 @@ export default function TodayPage() {
         </Empty>
       )}
 
-      {att.dueTodayUnscheduled.length > 0 && (
-        <ul className="mt-3 grid gap-1.5">
-          {att.dueTodayUnscheduled.map((t) => (
-            <li key={t.id}>
-              <Link href={`/item/${t.id}`} className="flex items-center gap-2 rounded-xl px-3 py-2 hover:bg-sunken">
-                <span className="h-5 w-5 rounded-full border-2 border-muted" aria-hidden />
-                <span className="flex-1">{t.title}</span>
-                <span className="text-sm text-muted">להיום · בלי זמן</span>
+      <SectionTitle hint={<Link href="/tasks" className="underline-offset-4 hover:underline">כל המשימות</Link>}>משימות</SectionTitle>
+      {todo.dueToday.length + todo.undated.length === 0 ? (
+        <Empty>אין משימות פתוחות להיום.</Empty>
+      ) : (
+        <ul className="grid gap-1.5">
+          {[...todo.dueToday, ...todo.undated.slice(0, UNDATED_LIMIT)].map((t) => (
+            <li key={t.id} className="flex items-center gap-3 rounded-2xl border border-line bg-surface px-3 py-2.5">
+              <button
+                type="button"
+                role="checkbox"
+                aria-checked={false}
+                aria-label={`סימון ״${t.title}״ כבוצעה`}
+                onClick={() => actions.run(completeTaskOp(t, true, newId("op"), new Date()), "בוצע")}
+                className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border-2 border-muted hover:border-accent"
+              />
+              <Link href={`/item/${t.id}`} className="flex flex-1 items-baseline justify-between gap-2">
+                <span className="font-medium">{t.title}</span>
+                <span className="shrink-0 text-sm text-muted">
+                  {t.due ? (t.dueIsDateOnly ? "להיום" : <>עד <span className="ltr-nums">{toHm(new Date(t.due), tz)}</span></>) : "בלי מועד"}
+                  {t.importance === "high" && " · חשוב"}
+                </span>
               </Link>
             </li>
           ))}
+          {todo.undated.length > UNDATED_LIMIT && (
+            <li>
+              <Link href="/tasks" className="block px-3 py-1 text-sm text-muted underline-offset-4 hover:underline">
+                ועוד {todo.undated.length - UNDATED_LIMIT} משימות בלי מועד
+              </Link>
+            </li>
+          )}
         </ul>
       )}
 

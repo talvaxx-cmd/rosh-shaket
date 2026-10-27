@@ -124,3 +124,14 @@ describe("confirmation → saved items", () => {
     expect(Object.keys(emptyState().items)).toHaveLength(0);
   });
 });
+
+describe("no invented deadlines", () => {
+  it("a date said for one task is not copied to the next ones", () => {
+    const items = parse("היום לקנות חלב, צריך לתאם טכנאי ולהתקשר לרואה חשבון");
+    expect(items.map((i) => [i.title, i.date])).toEqual([
+      ["לקנות חלב", "2026-10-27"],
+      ["לתאם טכנאי", null],
+      ["להתקשר לרואה חשבון", null],
+    ]);
+  });
+});

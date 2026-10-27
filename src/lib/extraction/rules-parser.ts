@@ -428,7 +428,6 @@ export function parseHebrew(input: string, ctx: ExtractionContext): ExtractRespo
   const c: Ctx = { today: toYmd(now, ctx.timeZone), nowHm: toHm(now, ctx.timeZone), ctx };
   const text = normalize(input);
   const items: DraftItem[] = [];
-  let lastDate: Ymd | null = null;
   let refN = 0;
 
   for (const clause of splitClauses(text)) {
@@ -488,10 +487,10 @@ export function parseHebrew(input: string, ctx: ExtractionContext): ExtractRespo
     if (time.value?.window) d.preferredWindow = time.value.window;
     if (date.value?.window) d.preferredWindow = date.value.window;
 
-    // Date: explicit, else inherited from the previous item in the same utterance.
+    // Date only when said for this item — never borrowed from a neighbour (prep tasks
+    // get their meeting's date below).
     let ymd = date.value?.date ?? null;
     if (date.value?.uncertain) d.uncertainties.push(date.value.uncertain);
-    else if (!ymd && !rec.value && lastDate && kind === "task" && !date.value) ymd = lastDate;
     if (date.value?.notBefore) d.notBefore = date.value.notBefore;
 
     if (kind === "event") {
@@ -550,7 +549,6 @@ export function parseHebrew(input: string, ctx: ExtractionContext): ExtractRespo
     const nameMatch = title.match(/עם\s+([א-ת]{2,})/);
     if (nameMatch) d.people = [nameMatch[1]!];
 
-    if (d.date) lastDate = d.date;
     items.push(d);
   }
 

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { Chip, Empty, Icon, LinkButton, PageHeader, cx } from "@/components/ui";
+import { taskDueYmd } from "@/lib/domain/agenda";
 import { completeTaskOp, newId, tasks as allTasks } from "@/lib/domain/store-core";
 import type { Task } from "@/lib/domain/types";
 import { useActions, useAppState, useNow } from "@/lib/client/store";
@@ -24,7 +25,7 @@ export default function TasksPage() {
   const [importantOnly, setImportantOnly] = useState(false);
 
   const list = useMemo(() => {
-    const dueYmd = (t: Task) => (t.due ? toYmd(new Date(new Date(t.due).getTime() - (t.dueIsDateOnly ? 1 : 0)), tz) : null);
+    const dueYmd = (t: Task) => taskDueYmd(t, tz);
     return allTasks(state)
       .filter((t) => t.status !== "dropped")
       .filter((t) => (status === "all" ? true : t.status === status))

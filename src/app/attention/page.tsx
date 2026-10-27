@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useMemo } from "react";
 import { Button, Card, Empty, Icon, PageHeader, SectionTitle } from "@/components/ui";
+import { taskDueYmd } from "@/lib/domain/agenda";
 import { attention } from "@/lib/domain/attention";
 import { completeTaskOp, newId, touch } from "@/lib/domain/store-core";
 import { useActions, useAppState, useNow } from "@/lib/client/store";
@@ -59,7 +60,7 @@ export default function AttentionPage() {
                   {t.title}
                 </Link>
                 <p className="text-sm text-muted">
-                  המועד היה {formatYmdHe(toYmd(new Date(new Date(t.due!).getTime() - (t.dueIsDateOnly ? 1 : 0)), tz))}
+                  המועד היה {formatYmdHe(taskDueYmd(t, tz)!)}
                   {!t.dueIsDateOnly && <span className="ltr-nums"> {toHm(new Date(t.due!), tz)}</span>}
                 </p>
                 <div className="mt-2 flex flex-wrap gap-2">

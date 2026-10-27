@@ -32,11 +32,30 @@ export function agendaForDay(state: AppState, ymd: Ymd, tz: string): AgendaEntry
   return out.sort((a, b) => a.start.localeCompare(b.start) || (a.type === "event" ? -1 : 1));
 }
 
+/**
+ * Local day a task is due. A date-only deadline is stored as midnight at the end
+ * of that day, so it is read one millisecond earlier to land on the right day.
+ */
+export function taskDueYmd(t: Task, tz: string): Ymd | null {
+  if (!t.due) return null;
+  return toYmd(new Date(new Date(t.due).getTime() - (t.dueIsDateOnly ? 1 : 0)), tz);
+}
+
 /** Open tasks with a deadline on this local day that have no slot yet. */
 export function unscheduledDueOn(state: AppState, ymd: Ymd, tz: string): Task[] {
-  return tasks(state).filter(
-    (t) => t.status === "open" && !t.scheduled && t.due && toYmd(new Date(t.due), tz) === ymd,
-  );
+  return tasks(state).filter((t) => t.status === "open" && !t.scheduled && taskDueYmd(t, tz) === ymd);
+}
+
+/** Open tasks for the Today screen: due today (not yet scheduled) and undated ones. */
+export function todayTasks(state: AppState, ymd: Ymd, tz: string, now: Date): { dueToday: Task[]; undated: Task[] } {
+  const open = tasks(state).filter((t) => t.status === "open" && !t.scheduled);
+  const started = (t: Task) => !t.notBefore || new Date(t.notBefore) <= now;
+  return {
+    dueToday: open.filter((t) => taskDueYmd(t, tz) === ymd && new Date(t.due!) > now),
+    undated: open
+      .filter((t) => !t.due && started(t))
+      .sort((a, b) => (a.importance === "high" ? 0 : 1) - (b.importance === "high" ? 0 : 1) || a.createdAt.localeCompare(b.createdAt)),
+  };
 }
 
 export function overdueTasks(state: AppState, now: Date): Task[] {
