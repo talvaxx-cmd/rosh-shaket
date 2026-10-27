@@ -134,7 +134,7 @@ export default function AttentionPage() {
               ))}
             </ul>
             <Link href="/plan" className="mt-3 inline-flex items-center gap-1 font-medium text-accent-strong">
-              <Icon.Spark size={18} /> לקבל הצעת שיבוץ
+              <Icon.Plan size={18} /> לקבל הצעת שיבוץ
             </Link>
           </Card>
         </>

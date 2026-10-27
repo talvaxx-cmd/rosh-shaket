@@ -122,9 +122,16 @@ export const Icon = {
       <path d="M17 3.5 20 6.5l-3 3M4 11.5v-1a4 4 0 0 1 4-4h12M7 20.5l-3-3 3-3M20 12.5v1a4 4 0 0 1-4 4H4" />
     </svg>
   ),
-  Spark: (p: IconProps) => (
+  /** Planning: a list with a check — not a spinner look-alike. */
+  Plan: (p: IconProps) => (
     <svg {...base(p)}>
-      <path d="M12 3v4M12 17v4M3 12h4M17 12h4M6 6l2.5 2.5M15.5 15.5 18 18M6 18l2.5-2.5M15.5 8.5 18 6" />
+      <rect x="4" y="3.5" width="16" height="17" rx="2.5" />
+      <path d="m8 9 1.5 1.5L12 8M8 15.5h8M14 9.5h2" />
+    </svg>
+  ),
+  Replan: (p: IconProps) => (
+    <svg {...base(p)}>
+      <path d="M20 12a8 8 0 1 1-2.3-5.6M20 4v4.5h-4.5" />
     </svg>
   ),
   Keyboard: (p: IconProps) => (
@@ -156,7 +163,7 @@ export function Button({
       type="button"
       {...props}
       className={cx(
-        "inline-flex items-center justify-center gap-2 rounded-full font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-45",
+        "inline-flex items-center justify-center gap-2 rounded-xl font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-45",
         size === "sm" && "min-h-10 px-4 text-[0.95rem]",
         size === "md" && "min-h-12 px-5",
         size === "lg" && "min-h-14 px-7 text-lg",
@@ -185,7 +192,7 @@ export function LinkButton({
     <Link
       href={href}
       className={cx(
-        "inline-flex min-h-12 items-center justify-center gap-2 rounded-full px-5 font-medium transition-colors",
+        "inline-flex min-h-12 items-center justify-center gap-2 rounded-xl px-5 font-medium transition-colors",
         variant === "primary" && "bg-accent text-on-accent hover:bg-accent-strong",
         variant === "secondary" && "border border-line bg-surface hover:bg-sunken",
         variant === "ghost" && "text-accent-strong hover:bg-accent-soft",
@@ -199,7 +206,7 @@ export function LinkButton({
 
 export function Card({ children, className, ...rest }: { children: ReactNode; className?: string } & React.HTMLAttributes<HTMLDivElement>) {
   return (
-    <div {...rest} className={cx("rounded-[var(--radius-card)] border border-line bg-surface p-4 sm:p-5", className)}>
+    <div {...rest} className={cx("rounded-[var(--radius-card)] border border-line bg-surface p-4", className)}>
       {children}
     </div>
   );
@@ -209,7 +216,7 @@ export function PageHeader({ title, subtitle, action }: { title: string; subtitl
   return (
     <header className="mb-5 flex items-start justify-between gap-3 pt-2">
       <div>
-        <h1 className="text-[1.75rem] font-semibold leading-tight tracking-tight">{title}</h1>
+        <h1 className="text-[1.75rem] font-bold leading-tight tracking-tight">{title}</h1>
         {subtitle && <p className="mt-1 text-muted">{subtitle}</p>}
       </div>
       {action}
@@ -219,8 +226,8 @@ export function PageHeader({ title, subtitle, action }: { title: string; subtitl
 
 export function SectionTitle({ children, hint }: { children: ReactNode; hint?: ReactNode }) {
   return (
-    <div className="mb-2 mt-7 flex items-baseline justify-between">
-      <h2 className="text-lg font-semibold">{children}</h2>
+    <div className="mb-3 mt-6 flex items-baseline justify-between">
+      <h2 className="text-lg font-bold">{children}</h2>
       {hint && <span className="text-sm text-muted">{hint}</span>}
     </div>
   );

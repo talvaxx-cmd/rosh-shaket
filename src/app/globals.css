@@ -8,17 +8,18 @@
 @theme {
   --font-sans: "Rubik", "Assistant", "Segoe UI", "Arial Hebrew", system-ui, sans-serif;
 
-  --color-bg: #f6f5f1;
+  /* Palette from the design review: calm, one accent used sparingly. */
+  --color-bg: #f7f8fa;
   --color-surface: #ffffff;
-  --color-sunken: #efede7;
-  --color-ink: #1b2220;
-  --color-muted: #56615d;
-  --color-faint: #6c7672;
-  --color-line: #e2dfd7;
+  --color-sunken: #eef1f0;
+  --color-ink: #182321;
+  --color-muted: #5e6c68;
+  --color-faint: #66736f;
+  --color-line: #e3e8e5;
 
-  --color-accent: #2c6b5e;
-  --color-accent-strong: #1f5247;
-  --color-accent-soft: #e2efea;
+  --color-accent: #246b5e;
+  --color-accent-strong: #1b5248;
+  --color-accent-soft: #edf5f1;
   --color-on-accent: #ffffff;
 
   --color-warn: #8a5300;
@@ -27,7 +28,7 @@
   --color-danger: #a8261c;
   --color-danger-soft: #fde8e6;
 
-  --radius-card: 1.25rem;
+  --radius-card: 1rem;
 }
 
 @layer base {
@@ -39,7 +40,7 @@
     background: var(--color-bg);
     color: var(--color-ink);
     font-family: var(--font-sans);
-    font-size: 1.0625rem;
+    font-size: 1rem;
     line-height: 1.6;
     -webkit-font-smoothing: antialiased;
   }

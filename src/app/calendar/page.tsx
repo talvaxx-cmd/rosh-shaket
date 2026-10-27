@@ -3,9 +3,9 @@
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useMemo } from "react";
-import { AgendaRow } from "@/components/AgendaRow";
+import { AgendaList, AgendaRow, TaskRow } from "@/components/AgendaRow";
 import { Icon, cx } from "@/components/ui";
-import { agendaForDay, overlaps, taskDueYmd, type AgendaEntry } from "@/lib/domain/agenda";
+import { agendaForDay, overlapTitles, taskDueYmd, type AgendaEntry } from "@/lib/domain/agenda";
 import { tasks as allTasks } from "@/lib/domain/store-core";
 import type { AppState, Task } from "@/lib/domain/types";
 import { useAppState, useNow } from "@/lib/client/store";
@@ -59,38 +59,29 @@ function DayAgenda({ state, ymd, today, now }: { state: AppState; ymd: Ymd; toda
   const tz = state.prefs.timeZone;
   const entries = agendaForDay(state, ymd, tz);
   const due = dueTasksOn(state, ymd, tz);
-  // Each event that overlaps another event that day → the other one's title.
-  const overlap = new Map<string, string>();
-  const evs = entries.filter((e) => e.type === "event");
-  for (const a of evs) {
-    const other = evs.find((b) => b !== a && overlaps(a, b));
-    if (other?.type === "event") overlap.set(`${a.id}:${a.start}`, other.occ.title);
-  }
+  const overlap = overlapTitles(entries);
   if (entries.length === 0 && due.length === 0) return <EmptyDay ymd={ymd} isToday={ymd === today} />;
   return (
     <div className="grid gap-3">
       {entries.length > 0 && (
-        <ul className="grid gap-2">
+        <AgendaList label="סדר היום">
           {entries.map((e) => (
             <AgendaRow key={`${e.type}:${e.id}:${e.start}`} entry={e} timeZone={tz} now={now} overlapsWith={overlap.get(`${e.id}:${e.start}`)} />
           ))}
-        </ul>
+        </AgendaList>
       )}
       {due.length > 0 && (
         <section aria-label="משימות ליום הזה, בלי שעה">
           <h3 className="mb-1 text-sm font-medium text-muted">משימות ליום הזה · בלי שעה</h3>
-          <ul className="grid gap-1.5">
+          <AgendaList>
             {due.map((t) => (
-              <li key={t.id}>
-                <Link href={`/item/${t.id}`} className="flex items-center gap-2.5 rounded-xl border border-dashed border-line bg-surface px-3 py-2.5">
-                  <span className="h-5 w-5 shrink-0 rounded-full border-2 border-muted" aria-hidden />
-                  <span className="sr-only">משימה: </span>
-                  <span className="flex-1">{t.title}</span>
-                  {!t.dueIsDateOnly && t.due && <span className="text-sm text-muted">עד <span className="ltr-nums">{toHm(new Date(t.due), tz)}</span></span>}
-                </Link>
-              </li>
+              <TaskRow
+                key={t.id}
+                task={t}
+                meta={!t.dueIsDateOnly && t.due ? <>משימה · עד <span className="ltr-nums">{toHm(new Date(t.due), tz)}</span></> : "משימה · בלי שעה"}
+              />
             ))}
-          </ul>
+          </AgendaList>
         </section>
       )}
     </div>

@@ -19,7 +19,7 @@ const DRAFT_KEY = "rosh-shaket:draft";
 /** Tells the user where a saved item went, so nothing seems to disappear. */
 function savedMessage(list: DraftItem[], today: string): string {
   const where = (d: DraftItem) => {
-    if (d.kind === "event") return d.date === today ? "ביומן של היום" : `ביומן, ${d.date ? relativeDayHe(d.date, today) : ""}`;
+    if (d.kind === "event") return `${d.date ? relativeDayHe(d.date, today) : ""}${d.time ? ` ב־${d.time}` : ""}, ביומן`;
     if (d.kind === "task") return !d.date ? "במשימות, בלי תאריך" : d.date === today ? "במשימות של היום" : `במשימות, ${relativeDayHe(d.date, today)}`;
     return "ב״דורש טיפול״";
   };
@@ -272,7 +272,7 @@ function AddInner() {
 
   return (
     <>
-      <PageHeader title="מה צריך?" subtitle="אומרים בחופשיות — כמה דברים ברצף זה בסדר גמור. אפשר גם להקליד או להוסיף ידנית." />
+      <PageHeader title="הוספת אירוע או משימה" subtitle="אומרים בחופשיות — אפשר כמה דברים ברצף. או מקלידים, או מוסיפים ידנית." />
 
       <div className="flex flex-col items-center gap-3 py-4">
         {speech.supported ? (

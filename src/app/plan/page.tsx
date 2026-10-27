@@ -39,7 +39,7 @@ function PlanMode() {
 
   return (
     <>
-      <PageHeader title="הצעת תכנון" subtitle="הצעה בלבד — שום דבר לא משתנה עד שתאשרו. פגישות קבועות לא זזות." />
+      <PageHeader title="תכנן לי את היום" subtitle="הצעה בלבד — שום דבר לא משתנה עד שתאשרו. פגישות קבועות לא זזות." />
       <div className="mb-4 flex gap-2" role="group" aria-label="יום לתכנון">
         <Chip active={ymd === today} onClick={() => setYmd(today)}>היום</Chip>
         <Chip active={ymd === addDaysYmd(today, 1)} onClick={() => setYmd(addDaysYmd(today, 1))}>מחר</Chip>
@@ -181,7 +181,7 @@ function DisruptMode() {
 
   return (
     <>
-      <PageHeader title="היום השתבש" subtitle="ספרו מה קרה — נציע מה להשאיר, להזיז או לדחות. פגישות קבועות לא זזות." />
+      <PageHeader title="תכנון מחדש" subtitle="משהו השתנה? ספרו מה — נציע מה להשאיר, להזיז או לדחות. פגישות קבועות לא זזות." />
 
       <div className="grid gap-3">
         <Card className="grid gap-2">
@@ -263,7 +263,7 @@ function DisruptMode() {
             ))}
           </ul>
           <Button variant="primary" size="lg" className="mt-3 w-full" onClick={() => setDiff(replanAfterDisruption(state, today, items, new Date()))}>
-            <Icon.Spark /> להציע סדר חדש
+            <Icon.Plan /> להציע סדר חדש
           </Button>
         </>
       )}

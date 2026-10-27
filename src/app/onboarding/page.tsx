@@ -49,7 +49,7 @@ export default function OnboardingPage() {
                 <span>כל דבר מוצג לאישור לפני שנשמר. מה שלא ברור — נשאל, לא ננחש.</span>
               </li>
               <li className="flex gap-3">
-                <Icon.Spark className="mt-0.5 shrink-0 text-accent" />
+                <Icon.Plan className="mt-0.5 shrink-0 text-accent" />
                 <span>כשהיום משתבש — מציעים סדר חדש, ואתם מחליטים.</span>
               </li>
             </ul>

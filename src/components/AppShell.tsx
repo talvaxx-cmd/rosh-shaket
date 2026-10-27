@@ -84,18 +84,18 @@ function MicButton() {
       aria-label={speech.recording ? "עצירת ההקלטה" : "הקלטה — לומר מה צריך"}
       className={cx(
         // Large hit area: the circle plus its label.
-        "flex min-h-20 w-24 touch-manipulation select-none flex-col items-center justify-start gap-1 rounded-2xl",
+        "flex min-h-20 w-full min-w-0 touch-manipulation select-none flex-col items-center justify-start gap-1 rounded-2xl",
       )}
     >
       <span
         className={cx(
-          "flex h-16 w-16 items-center justify-center rounded-full text-on-accent shadow-lg ring-4 ring-bg transition-colors",
+          "flex h-[3.25rem] w-[3.25rem] items-center justify-center rounded-full text-on-accent shadow-lg ring-4 ring-bg transition-colors",
           speech.recording ? "recording-pulse bg-accent-strong" : "bg-accent active:bg-accent-strong",
         )}
       >
-        {speech.recording ? <Icon.Stop size={28} /> : <Icon.Mic size={30} />}
+        {speech.recording ? <Icon.Stop size={24} /> : <Icon.Mic size={26} />}
       </span>
-      <span className={cx("text-[0.8rem] leading-none", speech.recording ? "font-semibold text-accent-strong" : "text-muted")}>
+      <span className={cx("max-w-full truncate text-[0.8rem] leading-none", speech.recording ? "font-semibold text-accent-strong" : "text-muted")}>
         {speech.recording ? "עצירה" : speech.status === "transcribing" ? "מתמלל…" : "הוספה בקול"}
       </span>
     </button>
@@ -117,33 +117,33 @@ export function AppShell({ children }: { children: ReactNode }) {
       <a href="#main" className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:right-2 focus:z-50 focus:rounded-lg focus:bg-surface focus:p-3">
         דילוג לתוכן
       </a>
-      <main id="main" className={cx("mx-auto w-full max-w-2xl px-4 pt-4", onboarding ? "pb-10" : "pb-36")}>
+      <main id="main" className={cx("mx-auto w-full max-w-2xl px-5 pt-4", onboarding ? "pb-10" : "pb-36")}>
         {children}
       </main>
       {!onboarding && (
         <nav aria-label="ניווט ראשי" className="fixed inset-x-0 bottom-0 z-40 border-t border-line bg-surface/95 pb-[max(env(safe-area-inset-bottom),0.5rem)] backdrop-blur">
-          <ul className="mx-auto flex max-w-2xl items-end justify-around px-2">
+          <ul className="mx-auto grid max-w-2xl grid-cols-5 items-end px-1">
             {NAV.map(({ href, label, icon: I, primary }) => {
               const active = href === "/" ? pathname === "/" : pathname.startsWith(href);
               if (primary) {
                 return (
-                  <li key={href} className="-mt-6">
+                  <li key={href} className="-mt-4 flex min-w-0 justify-center">
                     <MicButton />
                   </li>
                 );
               }
               return (
-                <li key={href}>
+                <li key={href} className="min-w-0">
                   <Link
                     href={href}
                     aria-current={active ? "page" : undefined}
                     className={cx(
-                      "flex min-h-16 min-w-16 touch-manipulation flex-col items-center justify-center gap-0.5 rounded-xl px-2 text-[0.8rem]",
+                      "flex min-h-16 w-full touch-manipulation flex-col items-center justify-center gap-0.5 rounded-xl px-1 text-[0.8rem]",
                       active ? "font-semibold text-accent-strong" : "text-muted hover:text-ink",
                     )}
                   >
-                    <I size={22} />
-                    {label}
+                    <I size={22} className="shrink-0" />
+                    <span className="max-w-full truncate">{label}</span>
                   </Link>
                 </li>
               );

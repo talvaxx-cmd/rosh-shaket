@@ -1,12 +1,12 @@
 "use client";
 
-import Link from "next/link";
 import { useMemo, useState } from "react";
-import { Chip, Empty, Icon, LinkButton, PageHeader, cx } from "@/components/ui";
+import { AgendaList, TaskRow } from "@/components/AgendaRow";
+import { Chip, Empty, Icon, LinkButton, PageHeader } from "@/components/ui";
 import { taskDueYmd } from "@/lib/domain/agenda";
-import { completeTaskOp, newId, tasks as allTasks } from "@/lib/domain/store-core";
+import { tasks as allTasks } from "@/lib/domain/store-core";
 import type { Task } from "@/lib/domain/types";
-import { useActions, useAppState, useNow } from "@/lib/client/store";
+import { useAppState, useNow } from "@/lib/client/store";
 import { addDaysYmd, formatDurationHe, relativeDayHe, toHm, toYmd, weekdayOfYmd } from "@/lib/time";
 
 type StatusFilter = "open" | "done" | "all";
@@ -14,7 +14,6 @@ type DueFilter = "any" | "today" | "week" | "none" | "late";
 
 export default function TasksPage() {
   const state = useAppState();
-  const actions = useActions();
   const now = useNow();
   const tz = state.prefs.timeZone;
   const today = toYmd(now, tz);
@@ -87,36 +86,28 @@ export default function TasksPage() {
       {list.length === 0 ? (
         <Empty>אין משימות בסינון הזה.</Empty>
       ) : (
-        <ul className="grid gap-2">
+        <AgendaList label="משימות">
           {list.map((t) => {
             const done = t.status === "done";
-            const late = !done && t.due && new Date(t.due) < now;
+            const late = !done && Boolean(t.due) && new Date(t.due!) < now;
             return (
-              <li key={t.id} className="flex items-start gap-3 rounded-2xl border border-line bg-surface px-4 py-3">
-                <button
-                  type="button"
-                  role="checkbox"
-                  aria-checked={done}
-                  aria-label={done ? `החזרת ״${t.title}״ לפתוחה` : `סימון ״${t.title}״ כבוצעה`}
-                  onClick={() => actions.run(completeTaskOp(t, !done, newId("op"), new Date()), done ? "הוחזר לפתוח" : "בוצע")}
-                  className={cx("mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full border-2", done ? "border-accent bg-accent text-on-accent" : "border-muted hover:border-accent")}
-                >
-                  {done && <Icon.Check size={16} />}
-                </button>
-                <Link href={`/item/${t.id}`} className="flex-1">
-                  <span className={cx("block font-medium", done && "text-muted line-through")}>{t.title}</span>
-                  <span className="flex flex-wrap gap-x-2 text-sm text-muted">
-                    <span className={cx(late && "font-medium text-danger")}>{late ? `באיחור · ${dueLabel(t)}` : dueLabel(t)}</span>
+              <TaskRow
+                key={t.id}
+                task={t}
+                late={late}
+                meta={
+                  <span className="flex flex-wrap gap-x-1.5">
+                    <span>{late ? `באיחור · ${dueLabel(t)}` : dueLabel(t)}</span>
                     {t.durationMin && <span>· {formatDurationHe(t.durationMin)}{t.durationAssumed ? " (משוער)" : ""}</span>}
-                    {t.importance === "high" && <span className="font-medium text-ink">· חשוב</span>}
+                    {t.importance === "high" && <span>· חשוב</span>}
                     {t.scheduled && <span>· משובצת <span className="ltr-nums">{toHm(new Date(t.scheduled.start), tz)}</span></span>}
                     {t.prepFor && <span>· הכנה לפגישה</span>}
                   </span>
-                </Link>
-              </li>
+                }
+              />
             );
           })}
-        </ul>
+        </AgendaList>
       )}
     </>
   );

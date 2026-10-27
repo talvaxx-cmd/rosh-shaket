@@ -105,3 +105,14 @@ export function conflictsWith(state: AppState, candidate: Interval, ignoreEventI
   const to = new Date(new Date(candidate.end).getTime() + 86400000);
   return occurrencesBetween(state, from, to).filter((o) => o.eventId !== ignoreEventId && overlaps(o, candidate));
 }
+
+/** For each event entry that overlaps another event that day: key `${id}:${start}` → the other event's title. */
+export function overlapTitles(entries: AgendaEntry[]): Map<string, string> {
+  const out = new Map<string, string>();
+  const evs = entries.filter((e): e is Extract<AgendaEntry, { type: "event" }> => e.type === "event");
+  for (const a of evs) {
+    const other = evs.find((b) => b !== a && overlaps(a, b));
+    if (other) out.set(`${a.id}:${a.start}`, other.occ.title);
+  }
+  return out;
+}
