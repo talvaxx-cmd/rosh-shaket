@@ -9,6 +9,16 @@ import { useActions } from "@/lib/client/store";
 import { formatDurationHe, minutesBetween, toHm } from "@/lib/time";
 import { Icon, cx } from "./ui";
 
+/** "לבדוק": a detail was guessed so nothing waited on a question. */
+function Unsure({ text }: { text: string }) {
+  return (
+    <span className="mt-0.5 flex min-w-0 items-center gap-1 text-sm font-medium text-warn">
+      <Icon.Alert size={14} className="shrink-0" />
+      <span className="min-w-0 truncate">לבדוק: {text}</span>
+    </span>
+  );
+}
+
 /** A plain list with thin dividers — one surface, no box around every item. */
 export function AgendaList({ children, label }: { children: ReactNode; label?: string }) {
   return (
@@ -81,6 +91,7 @@ export function AgendaRow({
               {o.location && ` · ${o.location}`}
               {o.recurring && " · חוזר"}
             </span>
+            {o.unsure && <Unsure text={o.unsure} />}
             {overlapsWith && (
               <span className="mt-0.5 flex min-w-0 items-center gap-1 text-sm font-medium text-danger">
                 <Icon.Alert size={15} className="shrink-0" />
@@ -106,6 +117,7 @@ export function AgendaRow({
           משימה · {formatDurationHe(minutesBetween(entry.start, entry.end))}
           {t.importance === "high" && " · חשוב"}
         </span>
+        {t.unsure && <Unsure text={t.unsure} />}
       </Link>
     </li>
   );
@@ -121,6 +133,7 @@ export function TaskRow({ task, meta, late, time }: { task: Task; meta: ReactNod
       <Link href={`/item/${task.id}`} className="min-w-0 flex-1">
         <span className={cx("block font-medium", done && "text-muted line-through")}>{task.title}</span>
         <span className={cx("block text-sm", late ? "font-medium text-danger" : "text-muted")}>{meta}</span>
+        {task.unsure && <Unsure text={task.unsure} />}
       </Link>
     </li>
   );

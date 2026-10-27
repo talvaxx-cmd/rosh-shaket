@@ -143,6 +143,8 @@ interface Toast {
   id: string;
   text: string;
   undoOpId?: string;
+  /** Optional shortcut, e.g. to check a guessed detail. */
+  link?: { href: string; label: string };
   tone?: "ok" | "error";
 }
 
@@ -180,7 +182,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const toast = useCallback(
     (t: Omit<Toast, "id">) => {
       const id = newId("toast");
-      setToasts((ts) => [...ts.slice(-2), { ...t, id }]);
+      // One message at a time: a new one replaces the previous instead of piling up over the calendar.
+      setToasts([{ ...t, id }]);
       timers.current.set(id, setTimeout(() => dismissToast(id), t.undoOpId ? 8000 : 4000));
     },
     [dismissToast],

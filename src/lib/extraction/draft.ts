@@ -56,7 +56,10 @@ export const DraftItemSchema = z.object({
   question: z.string().nullable(),
   uncertainties: z.array(UncertaintySchema),
 });
-export type DraftItem = z.infer<typeof DraftItemSchema>;
+export type DraftItem = z.infer<typeof DraftItemSchema> & {
+  /** Hebrew note about what was guessed (client-side only, not part of the model's output). */
+  unsure?: string;
+};
 
 export const ExtractionSchema = z.object({
   items: z.array(DraftItemSchema),

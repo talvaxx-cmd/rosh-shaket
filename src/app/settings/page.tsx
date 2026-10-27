@@ -120,7 +120,9 @@ export default function SettingsPage() {
         </div>
       </Card>
 
-      <SectionTitle>סנכרון בין מכשירים</SectionTitle>
+      <SectionTitle>
+        <span id="sync">סנכרון בין מכשירים</span>
+      </SectionTitle>
       <SyncSection available={status ? Boolean(status.sync) : null} timeZone={p.timeZone} />
 
       <SectionTitle>הוספה</SectionTitle>

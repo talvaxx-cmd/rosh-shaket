@@ -83,6 +83,27 @@ function RemindersEditor({ target, kind, tz }: { target: CalendarEvent | Task; k
   );
 }
 
+/** A detail was guessed when saving; confirm it, or edit below. */
+function UnsureBanner({ item }: { item: CalendarEvent | Task }) {
+  const actions = useActions();
+  if (!item.unsure) return null;
+  return (
+    <div className="mb-3">
+      <Notice tone="warn" title="כדאי לבדוק">
+        <p>{item.unsure}. אם זה נכון — מאשרים. אם לא — עורכים למטה.</p>
+        <Button
+          size="sm"
+          variant="primary"
+          className="mt-2"
+          onClick={() => actions.run({ opId: newId("op"), label: `אושר: ${item.title}`, source: "manual", put: [touch(item, new Date(), { unsure: undefined })] }, "אושר")}
+        >
+          <Icon.Check size={18} /> זה נכון
+        </Button>
+      </Notice>
+    </div>
+  );
+}
+
 function EventView({ ev, occKey }: { ev: CalendarEvent; occKey: string | null }) {
   const state = useAppState();
   const actions = useActions();
@@ -112,7 +133,7 @@ function EventView({ ev, occKey }: { ev: CalendarEvent; occKey: string | null })
   const clashes = editing ? conflictsWith(state, { start: newStart, end: newEnd }, ev.id) : [];
 
   const doEdit = (scope: RecurringScope) => {
-    const op = editRecurringEventOp(ev, key, start, { title, location: location || undefined, start: newStart, end: newEnd }, scope, newId("op"), new Date());
+    const op = editRecurringEventOp({ ...ev, unsure: undefined }, key, start, { title, location: location || undefined, start: newStart, end: newEnd }, scope, newId("op"), new Date());
     actions.run(op, "עודכן");
     setAskScope(null);
     setEditing(false);
@@ -127,6 +148,7 @@ function EventView({ ev, occKey }: { ev: CalendarEvent; occKey: string | null })
   return (
     <>
       <PageHeader title={occ?.title ?? ev.title} subtitle={<KindBadge kind="event" />} />
+      <UnsureBanner item={ev} />
       <Card>
         <dl className="grid gap-2">
           <div>
@@ -265,6 +287,7 @@ function TaskView({ task }: { task: Task }) {
         source: "manual",
         put: [
           touch(task, new Date(), {
+            unsure: undefined,
             title,
             due,
             dueIsDateOnly,
@@ -281,6 +304,7 @@ function TaskView({ task }: { task: Task }) {
   return (
     <>
       <PageHeader title={task.title} subtitle={<KindBadge kind="task" />} />
+      <UnsureBanner item={task} />
       {task.status === "done" && <Notice>המשימה בוצעה{task.completedAt ? ` ב־${toHm(new Date(task.completedAt), tz)}` : ""}.</Notice>}
       <Card className="mt-3 grid gap-3">
         <Field label="כותרת" htmlFor="t">

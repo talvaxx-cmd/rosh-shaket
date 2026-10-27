@@ -11,6 +11,7 @@ export interface Occurrence {
   location?: string;
   recurring: boolean;
   moved: boolean;
+  unsure?: string;
 }
 
 const MAX_OCCURRENCES = 1000;
@@ -53,6 +54,7 @@ export function occurrencesInRange(event: CalendarEvent, rangeStart: Date, range
     location: event.location,
     recurring: Boolean(event.recurrence),
     moved: false,
+    unsure: event.unsure,
   });
   const overlaps = (o: Occurrence) =>
     new Date(o.start).getTime() < rangeEnd.getTime() && new Date(o.end).getTime() > rangeStart.getTime();

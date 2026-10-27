@@ -36,6 +36,8 @@ export interface CalendarEvent {
   recurrence?: Recurrence;
   overrides?: Record<Ymd, OccurrenceOverride>;
   source: ItemSource;
+  /** Set when a detail was guessed so nothing waited on a question; shown as "לבדוק". Cleared on edit/confirm. */
+  unsure?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -71,6 +73,8 @@ export interface Task {
   recurrence?: Recurrence;
   timeZone: string;
   source: ItemSource;
+  /** Set when a detail was guessed so nothing waited on a question; shown as "לבדוק". Cleared on edit/confirm. */
+  unsure?: string;
   completedAt?: string;
   createdAt: string;
   updatedAt: string;

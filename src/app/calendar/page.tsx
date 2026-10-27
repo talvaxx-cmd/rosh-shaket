@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Suspense, useMemo } from "react";
+import { Suspense, useEffect, useMemo } from "react";
 import { AgendaList, AgendaRow, TaskRow } from "@/components/AgendaRow";
 import { Icon, cx } from "@/components/ui";
 import { calendarDay, overlapTitles, type AgendaEntry } from "@/lib/domain/agenda";
@@ -164,7 +164,11 @@ function CalendarInner() {
   const raw = params.get("d");
   const day = isYmd(raw) ? raw : today;
 
-  const go = (v: View, d: Ymd) => router.replace(`/calendar?view=${v}&d=${d}`, { scroll: false });
+  // The day view lives on the home screen; week and month stay here.
+  const go = (v: View, d: Ymd) => (v === "day" ? router.push(d === today ? "/" : `/?d=${d}`) : router.replace(`/calendar?view=${v}&d=${d}`, { scroll: false }));
+  useEffect(() => {
+    if (view === "day") router.replace(day === today ? "/" : `/?d=${day}`);
+  }, [view, day, today, router]);
 
   const weekStart = addDaysYmd(day, -weekdayOfYmd(day));
   const weekDays = useMemo(() => Array.from({ length: 7 }, (_, i) => addDaysYmd(weekStart, i)), [weekStart]);

@@ -34,7 +34,7 @@ function PlanMode() {
 
   const apply = () => {
     actions.run(applyPlanOp(state, chosen, newId("plan"), new Date()), `שובצו ${chosen.length} משימות`);
-    router.push(ymd === today ? "/" : `/calendar?view=day&d=${ymd}`);
+    router.push(ymd === today ? "/" : `/?d=${ymd}`);
   };
 
   return (

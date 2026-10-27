@@ -7,7 +7,7 @@ import { DraftCard } from "@/components/DraftCard";
 import { Button, Icon, Notice, PageHeader, cx } from "@/components/ui";
 import { newId } from "@/lib/domain/store-core";
 import { emptyDraft, type DraftItem, type ExtractResponse } from "@/lib/extraction/draft";
-import { draftConflicts, draftsToOp, isReady } from "@/lib/extraction/validate";
+import { autoResolve, draftConflicts, draftsToOp, isReady } from "@/lib/extraction/validate";
 import { MicPermissionTip } from "@/components/MicPermissionTip";
 import { SPEECH_ERROR_TEXT, useElapsed, useSpeech } from "@/lib/client/speech";
 import { notificationPermission, requestNotificationPermission } from "@/lib/client/notifications";
@@ -166,12 +166,20 @@ function AddInner() {
       }
       opId.current = newId("save");
       // Clear items save straight away; anything unclear or overlapping goes to review.
-      const clear =
-        prefs.autoSave &&
-        !data.warning &&
-        data.items.length > 0 &&
-        data.items.every((d) => isReady(d) && draftConflicts(state, d, tz).length === 0);
-      if (clear && saveDrafts(data.items)) return;
+      // Automatic mode: everything goes into the calendar right away. Unclear details are
+      // guessed and marked "לבדוק"; nothing waits on a question, nothing is dropped.
+      if (prefs.autoSave) {
+        const ctx = { now: new Date().toISOString(), timeZone: tz, dayStart: prefs.dayStart, dayEnd: prefs.dayEnd, defaultEventMin: prefs.defaultEventMin, defaultTaskMin: prefs.defaultTaskMin };
+        let items = data.items;
+        if (!items.length) {
+          const fallback = emptyDraft(newId("m"), "task", input);
+          fallback.title = input.slice(0, 120);
+          fallback.date = isYmd(forDate) ? forDate : null;
+          fallback.unsure = "לא הבנתי בדיוק — נשמר כפי שנאמר";
+          items = [fallback];
+        }
+        if (saveDrafts(autoResolve(items, ctx))) return;
+      }
       setDrafts(data.items);
       setMeta({ mode: data.mode, note: data.note, warning: data.warning });
       setManual(false);
@@ -202,7 +210,12 @@ function AddInner() {
       if (applied && op.put?.some((i) => i.kind === "reminder") && notificationPermission() === "default") {
         void requestNotificationPermission();
       }
-      actions.toast({ text: applied ? savedMessage(list, today) : "כבר נשמר", undoOpId: applied ? op.opId : undefined });
+      const guessed = op.put?.find((i) => (i.kind === "event" || i.kind === "task") && i.unsure);
+      actions.toast({
+        text: applied ? `${savedMessage(list, today)}${guessed ? " · כדאי לבדוק" : ""}` : "כבר נשמר",
+        undoOpId: applied ? op.opId : undefined,
+        link: applied && guessed ? { href: `/item/${guessed.id}`, label: "בדיקה" } : undefined,
+      });
       router.push("/");
       return true;
     } catch {

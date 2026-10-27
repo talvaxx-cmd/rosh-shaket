@@ -1,4 +1,4 @@
-import { addDaysYmd, formatYmdHe, hmToMinutes, isHm, isYmd, toHm, toYmd, zonedToInstant } from "../time";
+import { addDaysYmd, formatYmdHe, hmToMinutes, isHm, isYmd, relativeDayHe, toHm, toYmd, zonedToInstant } from "../time";
 import { conflictsWith } from "../domain/agenda";
 import { newId, type Op } from "../domain/store-core";
 import type { AppState, CalendarEvent, Item, ItemSource, Reminder, Task, Unresolved } from "../domain/types";
@@ -79,6 +79,45 @@ export function validateDrafts(input: DraftItem[], ctx: ExtractionContext): Draf
     });
 }
 
+/**
+ * Never leave an entry waiting on a question: take the most plausible answer,
+ * save it, and mark what was guessed ("לבדוק") so it can be fixed with one tap.
+ * An event with no time still lands in the calendar, on its day, as something to do.
+ */
+export function autoResolve(drafts: DraftItem[], ctx: ExtractionContext): DraftItem[] {
+  const today = toYmd(new Date(ctx.now), ctx.timeZone);
+  return drafts.map((raw) => {
+    const d: DraftItem = structuredClone(raw);
+    const notes: string[] = [];
+    if (d.kind === "unresolved") {
+      d.kind = "task";
+      d.flexible = true;
+      if (!d.title) d.title = d.sourceText.slice(0, 120);
+      notes.push(d.question ?? "חסרים פרטים");
+    }
+    for (const u of d.uncertainties.filter((x) => x.blocking)) {
+      const pick = u.options[0];
+      if (!pick) continue;
+      if (u.field === "time") {
+        d.time = pick;
+        notes.push(`השעה הוערכה ל־${pick}${u.options[1] ? ` (אולי ${u.options[1]})` : ""}`);
+      } else if (u.field === "date") {
+        d.date = pick;
+        notes.push(`היום הוערך: ${relativeDayHe(pick, today)}`);
+      }
+    }
+    d.uncertainties = d.uncertainties.filter((x) => !x.blocking);
+    if (d.kind === "event" && (!d.time || (!d.date && !d.recurrence))) {
+      d.kind = "task";
+      d.flexible = true;
+      d.time = null;
+      notes.push("לא נאמרה שעה");
+    }
+    if (notes.length) d.unsure = notes.join(" · ");
+    return d;
+  });
+}
+
 export function blockingQuestions(d: DraftItem): Uncertainty[] {
   return d.uncertainties.filter((u) => u.blocking);
 }
@@ -128,6 +167,7 @@ export function draftsToOp(
         notes: d.people.length ? `עם: ${d.people.join(", ")}` : undefined,
         recurrence,
         source,
+        unsure: d.unsure,
         createdAt: iso,
         updatedAt: iso,
       };
@@ -159,6 +199,7 @@ export function draftsToOp(
         recurrence,
         timeZone: tz,
         source,
+        unsure: d.unsure,
         createdAt: iso,
         updatedAt: iso,
       };

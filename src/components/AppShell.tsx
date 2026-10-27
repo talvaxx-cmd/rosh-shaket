@@ -8,11 +8,10 @@ import { useActions, useAppState, useToasts } from "@/lib/client/store";
 import { Icon, cx } from "./ui";
 import { NotificationRunner } from "./NotificationRunner";
 
+// One place for everything: the calendar. Plus adding by voice, and settings.
 const NAV = [
-  { href: "/", label: "היום", icon: Icon.Sun },
-  { href: "/calendar", label: "יומן", icon: Icon.Calendar },
+  { href: "/", label: "יומן", icon: Icon.Calendar },
   { href: "/add", label: "הוספה", icon: Icon.Mic, primary: true },
-  { href: "/tasks", label: "משימות", icon: Icon.List },
   { href: "/settings", label: "הגדרות", icon: Icon.Settings },
 ];
 
@@ -30,6 +29,15 @@ function Toasts() {
           )}
         >
           <span className="flex-1">{t.text}</span>
+          {t.link && (
+            <Link
+              href={t.link.href}
+              onClick={() => dismissToast(t.id)}
+              className="flex min-h-10 items-center rounded-full px-3 font-semibold text-[#ffd98a] hover:bg-white/10"
+            >
+              {t.link.label}
+            </Link>
+          )}
           {t.undoOpId && (
             <button
               type="button"
@@ -124,9 +132,9 @@ export function AppShell({ children }: { children: ReactNode }) {
       </main>
       {!onboarding && (
         <nav aria-label="ניווט ראשי" className="fixed inset-x-0 bottom-0 z-40 border-t border-line bg-surface/95 pb-[max(env(safe-area-inset-bottom),0.5rem)] backdrop-blur">
-          <ul className="mx-auto grid max-w-2xl grid-cols-5 items-end px-1">
+          <ul className="mx-auto grid max-w-md grid-cols-3 items-end px-1">
             {NAV.map(({ href, label, icon: I, primary }) => {
-              const active = href === "/" ? pathname === "/" : pathname.startsWith(href);
+              const active = href === "/" ? pathname === "/" || pathname.startsWith("/calendar") || pathname.startsWith("/tasks") || pathname.startsWith("/item") : pathname.startsWith(href);
               if (primary) {
                 return (
                   <li key={href} className="-mt-4 flex min-w-0 justify-center">
