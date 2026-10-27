@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { Button, Card, Field, Icon, Notice, PageHeader, SectionTitle, inputClass } from "@/components/ui";
+import { SyncSection } from "@/components/SyncSection";
 import { emptyState } from "@/lib/domain/store-core";
 import type { Preferences } from "@/lib/domain/types";
 import { notificationPermission, requestNotificationPermission, showNotification, type PermissionState } from "@/lib/client/notifications";
@@ -34,7 +35,7 @@ export default function SettingsPage() {
   const p = state.prefs;
   const set = (patch: Partial<Preferences>) => actions.setPrefs(patch);
   const [perm, setPerm] = useState<PermissionState>("default");
-  const [status, setStatus] = useState<{ extraction: "ai" | "rules"; model: string | null; transcription: "openai" | "elevenlabs" | null; version?: string | null } | null>(null);
+  const [status, setStatus] = useState<{ extraction: "ai" | "rules"; model: string | null; transcription: "openai" | "elevenlabs" | null; version?: string | null; sync?: boolean } | null>(null);
   const [testResult, setTestResult] = useState<string | null>(null);
   const [confirmWipe, setConfirmWipe] = useState(false);
 
@@ -117,6 +118,9 @@ export default function SettingsPage() {
           </Field>
         </div>
       </Card>
+
+      <SectionTitle>סנכרון בין מכשירים</SectionTitle>
+      <SyncSection available={status ? Boolean(status.sync) : null} timeZone={p.timeZone} />
 
       <SectionTitle>הוספה</SectionTitle>
       <Card>
@@ -211,7 +215,11 @@ export default function SettingsPage() {
               : "ההקלטה עצמה לא נשמרת. התמלול נעשה על ידי שירות הדיבור של הדפדפן (בכרום — Google, באייפון — Apple)."}
           </li>
           <li>הטקסט נשלח לפענוח{status?.extraction === "ai" ? " ל־Claude של Anthropic" : ""} ולא נשמר בשרת שלנו. תוכן אישי לא נכתב ללוגים.</li>
-          <li>כל הפריטים נשמרים רק במכשיר הזה. אין חשבון ואין עותק בשרת.</li>
+          <li>
+            {status?.sync
+              ? "הפריטים נשמרים במכשיר. אם הפעלתם סנכרון, עותק נשמר גם בשרת של האפליקציה כדי שיגיע למכשירים שלכם — ורק אליהם."
+              : "כל הפריטים נשמרים רק במכשיר הזה. אין חשבון ואין עותק בשרת."}
+          </li>
         </ul>
         <Toggle
           id="drafts"
@@ -239,7 +247,7 @@ export default function SettingsPage() {
           </Button>
         ) : (
           <Notice tone="danger" title="למחוק הכול מהמכשיר?">
-            <p>כל האירועים, המשימות, התזכורות וההיסטוריה יימחקו. אי אפשר לבטל.</p>
+            <p>כל האירועים, המשימות, התזכורות וההיסטוריה יימחקו{status?.sync ? " — וגם בכל המכשירים המסונכרנים" : ""}. אי אפשר לבטל.</p>
             <div className="mt-2 flex gap-2">
               <Button
                 variant="danger"

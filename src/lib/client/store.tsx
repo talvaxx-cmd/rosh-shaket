@@ -14,10 +14,21 @@ const KEY = "rosh-shaket:v1";
 
 type Listener = () => void;
 
-class LocalStore {
+/** Told about every local change, so sync can send it. Remote changes don't trigger it. */
+export type ChangeHook = (itemIds: string[], prefsChanged: boolean) => void;
+
+/** Preferences that belong to this device only and are never synced. */
+const DEVICE_PREFS = ["onboarded", "saveDraftsLocally"] as const;
+
+export class LocalStore {
   private state: AppState;
   private listeners = new Set<Listener>();
+  private changeHook: ChangeHook | null = null;
   readonly persistent: boolean;
+
+  setChangeHook(hook: ChangeHook | null) {
+    this.changeHook = hook;
+  }
 
   constructor() {
     const { state, persistent } = this.load();
@@ -71,21 +82,53 @@ class LocalStore {
       for (const l of this.listeners) l();
       throw e;
     }
+    this.changeHook?.([...(op.remove ?? []), ...(op.put ?? []).map((i) => i.id)], false);
     return true;
   }
 
   undo(opId: string): UndoResult {
+    const entry = this.state.history.find((h) => h.opId === opId);
     const res = undoOp(this.state, opId, `undo:${opId}`);
-    if (res.ok) this.commit(res.state);
+    if (res.ok) {
+      this.commit(res.state);
+      if (entry) this.changeHook?.(Object.keys(entry.before), false);
+    }
     return res;
   }
 
   setPrefs(patch: Partial<Preferences>) {
     this.commit({ ...this.state, prefs: { ...this.state.prefs, ...patch } });
+    const shared = Object.keys(patch).some((k) => !(DEVICE_PREFS as readonly string[]).includes(k));
+    if (shared) this.changeHook?.([], true);
   }
 
   replaceAll(next: AppState) {
+    const ids = new Set([...Object.keys(this.state.items), ...Object.keys(next.items)]);
     this.commit(next);
+    this.changeHook?.([...ids], true);
+  }
+
+  /** Synced preferences without device-only ones. */
+  sharedPrefs(): Record<string, unknown> {
+    const p: Record<string, unknown> = { ...this.state.prefs };
+    for (const k of DEVICE_PREFS) delete p[k];
+    return p;
+  }
+
+  /** Applies changes that came from another device. Not recorded in local history, not echoed back. */
+  applyRemote(changes: { id: string; data: unknown | null }[], prefs: Record<string, unknown> | null) {
+    if (!changes.length && !prefs) return;
+    const items = { ...this.state.items };
+    for (const c of changes) {
+      if (c.data === null) delete items[c.id];
+      else items[c.id] = c.data as AppState["items"][string];
+    }
+    let nextPrefs = this.state.prefs;
+    if (prefs) {
+      const local = Object.fromEntries(DEVICE_PREFS.map((k) => [k, this.state.prefs[k]]));
+      nextPrefs = { ...this.state.prefs, ...(prefs as Partial<Preferences>), ...local };
+    }
+    this.commit({ ...this.state, items, prefs: nextPrefs });
   }
 
   /** Another tab changed the data. */
@@ -212,4 +255,9 @@ export function useNow(intervalMs = 30_000): Date {
     return () => clearInterval(t);
   }, [intervalMs]);
   return now;
+}
+
+/** The store itself, for services (sync) that hook into every change. */
+export function useStoreInstance(): LocalStore {
+  return useApi().store;
 }

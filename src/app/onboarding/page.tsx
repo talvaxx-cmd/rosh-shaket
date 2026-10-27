@@ -57,6 +57,9 @@ export default function OnboardingPage() {
           <Button variant="primary" size="lg" onClick={() => setStep(1)}>
             מתחילים
           </Button>
+          <button type="button" className="min-h-11 text-[0.95rem] font-medium text-accent-strong" onClick={() => router.push("/link")}>
+            כבר משתמשים בראש שקט במכשיר אחר? חיבור
+          </button>
         </>
       )}
 

@@ -107,10 +107,12 @@ export function AppShell({ children }: { children: ReactNode }) {
   const router = useRouter();
   const state = useAppState();
   const onboarding = pathname.startsWith("/onboarding");
+  // Linking a new device doesn't require going through the intro first.
+  const linking = pathname.startsWith("/link");
 
   useEffect(() => {
-    if (!state.prefs.onboarded && !onboarding) router.replace("/onboarding");
-  }, [state.prefs.onboarded, onboarding, router]);
+    if (!state.prefs.onboarded && !onboarding && !linking) router.replace("/onboarding");
+  }, [state.prefs.onboarded, onboarding, linking, router]);
 
   return (
     <>

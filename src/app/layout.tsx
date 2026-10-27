@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { AppShell } from "@/components/AppShell";
 import { SpeechProvider } from "@/lib/client/speech";
 import { StoreProvider } from "@/lib/client/store";
+import { SyncProvider } from "@/lib/client/sync";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -31,9 +32,11 @@ export default function RootLayout({ children }: { children: ReactNode }) {
       </head>
       <body>
         <StoreProvider>
-          <SpeechProvider>
-            <AppShell>{children}</AppShell>
-          </SpeechProvider>
+          <SyncProvider>
+            <SpeechProvider>
+              <AppShell>{children}</AppShell>
+            </SpeechProvider>
+          </SyncProvider>
         </StoreProvider>
       </body>
     </html>
