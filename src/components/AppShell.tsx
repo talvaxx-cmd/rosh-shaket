@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, type ReactNode } from "react";
+import { useSpeech } from "@/lib/client/speech";
 import { useActions, useAppState, useToasts } from "@/lib/client/store";
 import { Icon, cx } from "./ui";
 import { NotificationRunner } from "./NotificationRunner";
@@ -51,6 +52,50 @@ function Toasts() {
   );
 }
 
+/**
+ * The center button records right away: the tap itself starts the microphone
+ * (browsers only allow that from a direct tap), then the Add screen opens and
+ * shows the words as they're heard. A second tap stops.
+ */
+function MicButton() {
+  const speech = useSpeech();
+  const router = useRouter();
+  const pathname = usePathname();
+  const onAdd = pathname.startsWith("/add");
+
+  const onClick = () => {
+    if (speech.recording) {
+      speech.stop();
+      return;
+    }
+    if (speech.status === "stopping") return;
+    if (speech.supported) speech.start();
+    if (!onAdd) router.push("/add");
+  };
+
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={speech.recording}
+      aria-label={speech.recording ? "עצירת ההקלטה" : "הקלטה — לומר מה צריך"}
+      className={cx(
+        // Large hit area (80px) around the 68px visual circle.
+        "flex h-20 w-20 touch-manipulation select-none items-center justify-center rounded-full",
+      )}
+    >
+      <span
+        className={cx(
+          "flex h-[4.25rem] w-[4.25rem] items-center justify-center rounded-full text-on-accent shadow-lg ring-4 ring-bg transition-colors",
+          speech.recording ? "recording-pulse bg-accent-strong" : "bg-accent active:bg-accent-strong",
+        )}
+      >
+        {speech.recording ? <Icon.Stop size={28} /> : <Icon.Mic size={30} />}
+      </span>
+    </button>
+  );
+}
+
 export function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
@@ -70,20 +115,14 @@ export function AppShell({ children }: { children: ReactNode }) {
         {children}
       </main>
       {!onboarding && (
-        <nav aria-label="ניווט ראשי" className="fixed inset-x-0 bottom-0 z-40 border-t border-line bg-surface/95 pb-[env(safe-area-inset-bottom)] backdrop-blur">
+        <nav aria-label="ניווט ראשי" className="fixed inset-x-0 bottom-0 z-40 border-t border-line bg-surface/95 pb-[max(env(safe-area-inset-bottom),0.5rem)] backdrop-blur">
           <ul className="mx-auto flex max-w-2xl items-end justify-around px-2">
             {NAV.map(({ href, label, icon: I, primary }) => {
               const active = href === "/" ? pathname === "/" : pathname.startsWith(href);
               if (primary) {
                 return (
-                  <li key={href} className="-mt-6">
-                    <Link
-                      href={href}
-                      aria-label="הוספה בקול או בטקסט"
-                      className="flex h-16 w-16 items-center justify-center rounded-full bg-accent text-on-accent shadow-lg ring-4 ring-bg hover:bg-accent-strong"
-                    >
-                      <I size={28} />
-                    </Link>
+                  <li key={href} className="-mt-7">
+                    <MicButton />
                   </li>
                 );
               }
@@ -93,7 +132,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                     href={href}
                     aria-current={active ? "page" : undefined}
                     className={cx(
-                      "flex min-h-16 min-w-16 flex-col items-center justify-center gap-0.5 rounded-xl px-2 text-[0.8rem]",
+                      "flex min-h-16 min-w-16 touch-manipulation flex-col items-center justify-center gap-0.5 rounded-xl px-2 text-[0.8rem]",
                       active ? "font-semibold text-accent-strong" : "text-muted hover:text-ink",
                     )}
                   >

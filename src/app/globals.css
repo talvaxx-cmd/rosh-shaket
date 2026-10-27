@@ -55,6 +55,14 @@
     font: inherit;
     color: inherit;
   }
+  /* No double-tap zoom delay or grey flash on taps (mobile). */
+  a,
+  button,
+  [role="button"],
+  [role="checkbox"] {
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+  }
   /* Times and dates read left-to-right inside RTL text. */
   .ltr-nums {
     direction: ltr;

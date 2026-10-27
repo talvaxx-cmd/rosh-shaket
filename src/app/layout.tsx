@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
 import { AppShell } from "@/components/AppShell";
+import { SpeechProvider } from "@/lib/client/speech";
 import { StoreProvider } from "@/lib/client/store";
 import "./globals.css";
 
@@ -30,7 +31,9 @@ export default function RootLayout({ children }: { children: ReactNode }) {
       </head>
       <body>
         <StoreProvider>
-          <AppShell>{children}</AppShell>
+          <SpeechProvider>
+            <AppShell>{children}</AppShell>
+          </SpeechProvider>
         </StoreProvider>
       </body>
     </html>

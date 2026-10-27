@@ -8,7 +8,8 @@ import { Button, Icon, Notice, PageHeader, cx } from "@/components/ui";
 import { newId } from "@/lib/domain/store-core";
 import type { DraftItem, ExtractResponse } from "@/lib/extraction/draft";
 import { draftConflicts, draftsToOp, isReady } from "@/lib/extraction/validate";
-import { SPEECH_ERROR_TEXT, useSpeech } from "@/lib/client/speech";
+import { MicPermissionTip } from "@/components/MicPermissionTip";
+import { SPEECH_ERROR_TEXT, useElapsed, useSpeech } from "@/lib/client/speech";
 import { notificationPermission, requestNotificationPermission } from "@/lib/client/notifications";
 import { useActions, useAppState } from "@/lib/client/store";
 import { toYmd } from "@/lib/time";
@@ -28,6 +29,7 @@ function AddInner() {
   const router = useRouter();
   const params = useSearchParams();
   const speech = useSpeech();
+  const elapsed = useElapsed(speech.startedAt, speech.recording);
   const prefs = state.prefs;
   const tz = prefs.timeZone;
 
@@ -66,13 +68,15 @@ function AddInner() {
     } catch {}
   }, [text, prefs.saveDraftsLocally]);
 
-  // Recording finished → transcript goes into the editable text box.
+  // Recording finished (here or from the center button) → transcript goes into the editable text box.
   useEffect(() => {
-    if (speech.status === "idle" && speech.finalText) {
-      setText((t) => (t ? `${t} ${speech.finalText}` : speech.finalText));
+    if (speech.status === "idle" && speech.text) {
+      const heard = speech.take();
+      setText((t) => (t ? `${t} ${heard}` : heard));
       source.current = "voice";
     }
-  }, [speech.status, speech.finalText]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [speech.status, speech.text]);
 
   const clearDraft = () => {
     setText("");
@@ -136,7 +140,7 @@ function AddInner() {
     }
   }
 
-  const recording = speech.status === "recording" || speech.status === "starting";
+  const recording = speech.recording;
 
   if (phase === "review") {
     return (
@@ -212,10 +216,11 @@ function AddInner() {
             <button
               type="button"
               onClick={recording ? speech.stop : speech.start}
+              disabled={speech.status === "stopping"}
               aria-pressed={recording}
               aria-label={recording ? "עצירת ההקלטה" : "התחלת הקלטה"}
               className={cx(
-                "flex h-28 w-28 items-center justify-center rounded-full text-on-accent shadow-xl transition-colors",
+                "flex h-32 w-32 touch-manipulation select-none items-center justify-center rounded-full text-on-accent shadow-xl transition-colors",
                 recording ? "recording-pulse bg-accent-strong" : "bg-accent hover:bg-accent-strong",
               )}
             >
@@ -225,12 +230,12 @@ function AddInner() {
               {recording ? (
                 <span className="flex items-center gap-2 font-medium text-accent-strong">
                   <span className="inline-block h-2.5 w-2.5 rounded-full bg-danger" aria-hidden />
-                  מקליט <span className="ltr-nums">{formatElapsed(speech.elapsed)}</span>
+                  מקליט <span className="ltr-nums">{formatElapsed(elapsed)}</span>
                 </span>
               ) : speech.status === "stopping" ? (
                 <span className="text-muted">מסיים תמלול…</span>
               ) : (
-                <span className="text-muted">הקשה כדי לדבר</span>
+                <span className="text-muted">הקשה אחת כדי לדבר, הקשה נוספת לסיום</span>
               )}
             </div>
             {recording && (
@@ -243,11 +248,18 @@ function AddInner() {
           <Notice>{SPEECH_ERROR_TEXT.unsupported}</Notice>
         )}
         {speech.error && <Notice tone="warn">{SPEECH_ERROR_TEXT[speech.error]}</Notice>}
+        {speech.supported && <MicPermissionTip forceOpen={speech.error === "not-allowed"} />}
       </div>
 
-      {(recording || speech.interim) && (speech.finalText || speech.interim) && (
-        <p className="mb-3 rounded-2xl bg-sunken px-4 py-3 text-lg" aria-live="polite">
-          {speech.finalText} <span className="text-faint">{speech.interim}</span>
+      {(recording || speech.status === "stopping") && (
+        <p className="mb-3 min-h-14 rounded-2xl bg-sunken px-4 py-3 text-lg" aria-live="polite">
+          {speech.text || speech.interim ? (
+            <>
+              {speech.text} <span className="text-faint">{speech.interim}</span>
+            </>
+          ) : (
+            <span className="text-faint">מקשיב…</span>
+          )}
         </p>
       )}
 
@@ -260,7 +272,7 @@ function AddInner() {
         value={text}
         onChange={(e) => {
           setText(e.target.value);
-          if (speech.status === "idle" && !speech.finalText) source.current = "text";
+          if (speech.status === "idle" && !text) source.current = "text";
         }}
         rows={4}
         placeholder="למשל: מחר בעשר בבוקר תור לרופא, ולקנות מתנה לנועה עד יום חמישי"
