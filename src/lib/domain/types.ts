@@ -128,6 +128,8 @@ export interface Preferences {
   dailySummaryAt: Hm;
   hideNotificationContent: boolean;
   saveDraftsLocally: boolean;
+  /** Save clear items right away (no review card), with undo. Unclear ones still ask. */
+  autoSave: boolean;
   onboarded: boolean;
 }
 
@@ -145,6 +147,7 @@ export const DEFAULT_PREFERENCES: Preferences = {
   dailySummaryAt: "07:30",
   hideNotificationContent: false,
   saveDraftsLocally: true,
+  autoSave: true,
   onboarded: false,
 };
 

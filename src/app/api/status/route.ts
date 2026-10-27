@@ -9,5 +9,6 @@ export function GET() {
     extraction: ai ? "ai" : "rules",
     model: ai ? EXTRACTION_MODEL : null,
     transcription: transcriptionProvider(),
+    version: process.env.RAILWAY_GIT_COMMIT_SHA?.slice(0, 7) ?? null,
   });
 }

@@ -34,7 +34,7 @@ export default function SettingsPage() {
   const p = state.prefs;
   const set = (patch: Partial<Preferences>) => actions.setPrefs(patch);
   const [perm, setPerm] = useState<PermissionState>("default");
-  const [status, setStatus] = useState<{ extraction: "ai" | "rules"; model: string | null; transcription: "openai" | "elevenlabs" | null } | null>(null);
+  const [status, setStatus] = useState<{ extraction: "ai" | "rules"; model: string | null; transcription: "openai" | "elevenlabs" | null; version?: string | null } | null>(null);
   const [testResult, setTestResult] = useState<string | null>(null);
   const [confirmWipe, setConfirmWipe] = useState(false);
 
@@ -116,6 +116,17 @@ export default function SettingsPage() {
             <input id="dtm" type="number" min={5} step={5} className={`${inputClass} ltr-nums`} value={p.defaultTaskMin} onChange={(e) => set({ defaultTaskMin: Math.max(5, Number(e.target.value) || 30) })} />
           </Field>
         </div>
+      </Card>
+
+      <SectionTitle>הוספה</SectionTitle>
+      <Card>
+        <Toggle
+          id="autosave"
+          label="שמירה אוטומטית כשהכול ברור"
+          hint="אחרי דיבור או הקלדה, פריטים ברורים נשמרים מיד (עם כפתור ביטול). כרטיס לבדיקה יופיע רק כשמשהו לא ברור או חופף."
+          checked={p.autoSave}
+          onChange={(v) => set({ autoSave: v })}
+        />
       </Card>
 
       <SectionTitle>התראות</SectionTitle>
@@ -247,7 +258,7 @@ export default function SettingsPage() {
       </Card>
 
       <p className="mt-8 text-center text-sm text-faint">
-        ראש שקט · גרסה ראשונה ·{" "}
+        ראש שקט · גרסה {status?.version ?? "מקומית"} ·{" "}
         <button type="button" className="underline underline-offset-4" onClick={() => set({ onboarded: false })}>
           הצגת ההיכרות מחדש
         </button>

@@ -12,9 +12,20 @@ import { MicPermissionTip } from "@/components/MicPermissionTip";
 import { SPEECH_ERROR_TEXT, useElapsed, useSpeech } from "@/lib/client/speech";
 import { notificationPermission, requestNotificationPermission } from "@/lib/client/notifications";
 import { useActions, useAppState } from "@/lib/client/store";
-import { isYmd, toYmd } from "@/lib/time";
+import { isYmd, relativeDayHe, toYmd } from "@/lib/time";
 
 const DRAFT_KEY = "rosh-shaket:draft";
+
+/** Tells the user where a saved item went, so nothing seems to disappear. */
+function savedMessage(list: DraftItem[], today: string): string {
+  const where = (d: DraftItem) => {
+    if (d.kind === "event") return d.date === today ? "ביומן של היום" : `ביומן, ${d.date ? relativeDayHe(d.date, today) : ""}`;
+    if (d.kind === "task") return !d.date ? "במשימות, בלי תאריך" : d.date === today ? "במשימות של היום" : `במשימות, ${relativeDayHe(d.date, today)}`;
+    return "ב״דורש טיפול״";
+  };
+  if (list.length === 1) return `נשמר ״${list[0]!.title}״ — ${where(list[0]!)}`;
+  return `נשמרו ${list.length} פריטים: ${list.map((d) => `״${d.title}״`).join(", ")}`;
+}
 const SAMPLE = "מחר בשלוש פגישה עם דני במשרד, שעה בערך. תזכיר לי חצי שעה לפני, ותוסיף להכין את ההצעה בבוקר.";
 
 type Phase = "input" | "extracting" | "review";
@@ -103,13 +114,15 @@ function AddInner() {
     } catch {}
   }, [text, prefs.saveDraftsLocally]);
 
-  // Recording finished (here or from the center button) → transcript goes into the editable text box.
+  // Recording finished (here or from the center button) → understand it right away.
   useEffect(() => {
     if (speech.status === "idle" && speech.text) {
       const heard = speech.take();
       // Each recording on its own line, so separate utterances stay separate items.
-      setText((t) => (t ? `${t.trimEnd()}\n${heard}` : heard));
+      const next = text ? `${text.trimEnd()}\n${heard}` : heard;
+      setText(next);
       source.current = "voice";
+      if (phase === "input") void extract(next);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [speech.status, speech.text]);
@@ -121,8 +134,8 @@ function AddInner() {
     } catch {}
   };
 
-  async function extract() {
-    const input = text.trim();
+  async function extract(override?: string) {
+    const input = (override ?? text).trim();
     if (!input) return;
     setPhase("extracting");
     setError(null);
@@ -144,10 +157,17 @@ function AddInner() {
       });
       if (!res.ok) throw new Error(String(res.status));
       const data = (await res.json()) as ExtractResponse;
+      opId.current = newId("save");
+      // Clear items save straight away; anything unclear or overlapping goes to review.
+      const clear =
+        prefs.autoSave &&
+        !data.warning &&
+        data.items.length > 0 &&
+        data.items.every((d) => isReady(d) && draftConflicts(state, d, tz).length === 0);
+      if (clear && saveDrafts(data.items)) return;
       setDrafts(data.items);
       setMeta({ mode: data.mode, note: data.note, warning: data.warning });
       setManual(false);
-      opId.current = newId("save");
       setPhase("review");
     } catch {
       setError("לא הצלחתי לפענח כרגע — כנראה בעיית רשת. שום דבר לא נשמר. אפשר לנסות שוב או לערוך את הטקסט.");
@@ -161,8 +181,13 @@ function AddInner() {
   const pending = drafts.filter((d) => !isReady(d)).length;
 
   function save() {
+    saveDrafts(drafts);
+  }
+
+  /** Saves and goes home; returns false (and shows why) if storage failed. */
+  function saveDrafts(list: DraftItem[]): boolean {
     setSaveError(null);
-    const op = draftsToOp(drafts, { opId: opId.current, timeZone: tz, now: new Date(), source: source.current, defaultTaskMin: prefs.defaultTaskMin });
+    const op = draftsToOp(list, { opId: opId.current, timeZone: tz, now: new Date(), source: source.current, defaultTaskMin: prefs.defaultTaskMin });
     try {
       const applied = actions.dispatch(op);
       clearDraft();
@@ -170,10 +195,12 @@ function AddInner() {
       if (applied && op.put?.some((i) => i.kind === "reminder") && notificationPermission() === "default") {
         void requestNotificationPermission();
       }
-      actions.toast({ text: applied ? (drafts.length === 1 ? "נשמר" : `נשמרו ${drafts.length} פריטים`) : "כבר נשמר", undoOpId: applied ? op.opId : undefined });
+      actions.toast({ text: applied ? savedMessage(list, today) : "כבר נשמר", undoOpId: applied ? op.opId : undefined });
       router.push("/");
+      return true;
     } catch {
       setSaveError("הפריטים לא נשמרו (האחסון במכשיר לא זמין או מלא). אפשר לנסות שוב — לא ייווצרו כפילויות.");
+      return false;
     }
   }
 
@@ -344,8 +371,8 @@ function AddInner() {
       )}
 
       <div className="mt-4 flex gap-2">
-        <Button variant="primary" size="lg" className="flex-1" disabled={!text.trim() || phase === "extracting" || recording} onClick={extract}>
-          {phase === "extracting" ? "מפענח…" : error ? "ניסיון חוזר" : "המשך לבדיקה"}
+        <Button variant="primary" size="lg" className="flex-1" disabled={!text.trim() || phase === "extracting" || recording} onClick={() => void extract()}>
+          {phase === "extracting" ? "מפענח…" : error ? "ניסיון חוזר" : prefs.autoSave ? "שמירה" : "המשך לבדיקה"}
         </Button>
         {text && (
           <Button size="lg" onClick={clearDraft} disabled={phase === "extracting"}>
