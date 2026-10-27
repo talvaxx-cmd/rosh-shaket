@@ -157,6 +157,13 @@ function AddInner() {
       });
       if (!res.ok) throw new Error(String(res.status));
       const data = (await res.json()) as ExtractResponse;
+      // Added from a specific day (e.g. "מחר" on the Today screen): undated items go to that day.
+      const forDate = params.get("date");
+      if (isYmd(forDate)) {
+        data.items = data.items.map((d) =>
+          d.date || d.kind === "unresolved" ? d : { ...d, date: forDate, uncertainties: d.uncertainties.filter((u) => u.field !== "date" && u.field !== "due") },
+        );
+      }
       opId.current = newId("save");
       // Clear items save straight away; anything unclear or overlapping goes to review.
       const clear =
@@ -272,7 +279,18 @@ function AddInner() {
 
   return (
     <>
-      <PageHeader title="הוספת אירוע או משימה" subtitle="אומרים בחופשיות — אפשר כמה דברים ברצף. או מקלידים, או מוסיפים ידנית." />
+      <PageHeader
+        title="הוספת משימה או אירוע"
+        subtitle={
+          isYmd(params.get("date")) ? (
+            <>
+              מוסיפים ל<strong className="font-medium text-ink">{relativeDayHe(params.get("date")!, today)}</strong> — אלא אם תגידו יום אחר.
+            </>
+          ) : (
+            "אומרים בחופשיות — אפשר כמה דברים ברצף. או מקלידים, או מוסיפים ידנית."
+          )
+        }
+      />
 
       <div className="flex flex-col items-center gap-3 py-4">
         {speech.supported ? (

@@ -5,10 +5,10 @@ import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import { AgendaList, AgendaRow, TaskRow } from "@/components/AgendaRow";
 import { Button, Icon, LinkButton, Notice, SectionTitle } from "@/components/ui";
-import { agendaForDay, overdueTasks, overlapTitles, taskDueYmd, todayTasks } from "@/lib/domain/agenda";
+import { agendaForDay, calendarDay, overdueTasks, overlapTitles, taskDueYmd, todayTasks, type AgendaEntry } from "@/lib/domain/agenda";
 import { useSpeech } from "@/lib/client/speech";
 import { useActions, useAppState, useNow } from "@/lib/client/store";
-import { addDaysYmd, defaultTimeZone, endOfDay, formatYmdHe, relativeDayHe, toHm, toYmd, zonedToInstant } from "@/lib/time";
+import { addDaysYmd, defaultTimeZone, endOfDay, formatDurationHe, formatYmdHe, relativeDayHe, toHm, toYmd, zonedToInstant } from "@/lib/time";
 
 const ZONE_ACK_KEY = "rosh-shaket:zone-ack";
 const UNDATED_LIMIT = 5;
@@ -62,10 +62,10 @@ function EmptyToday() {
         <path d="M32 8v4M16 14l2.5 2.5M48 14l-2.5 2.5" />
       </svg>
       <h2 className="text-lg font-bold">היום שלך פנוי</h2>
-      <p className="mt-1 text-muted">אין אירועים או משימות מתוכננים להיום.</p>
+      <p className="mt-1 text-muted">אפשר להוסיף משימה או אירוע, בהקלדה או בקול.</p>
       <div className="mt-5 grid gap-2">
         <LinkButton href="/add" variant="primary">
-          <Icon.Plus size={20} /> הוספת אירוע או משימה
+          <Icon.Plus size={20} /> הוספת משימה או אירוע
         </LinkButton>
         {speech.supported && (
           <Button
@@ -82,11 +82,59 @@ function EmptyToday() {
   );
 }
 
+function TomorrowView({ ymd, today, now }: { ymd: string; today: string; now: Date }) {
+  const state = useAppState();
+  const tz = state.prefs.timeZone;
+  const { timeline, allDay } = useMemo(() => calendarDay(state, ymd, tz, today), [state, ymd, tz, today]);
+  const overlap = useMemo(() => overlapTitles(timeline.filter((r): r is AgendaEntry => r.type !== "due")), [timeline]);
+  if (!timeline.length && !allDay.length) {
+    return (
+      <section className="mt-6 rounded-[var(--radius-card)] border border-line bg-surface px-5 py-8 text-center">
+        <h2 className="text-lg font-bold">מחר עדיין פנוי</h2>
+        <p className="mt-1 text-muted">אפשר להכין אותו מראש — בהקלדה או בקול.</p>
+        <LinkButton href={`/add?date=${ymd}`} variant="primary" className="mt-5 w-full">
+          <Icon.Plus size={20} /> הוספה למחר
+        </LinkButton>
+      </section>
+    );
+  }
+  return (
+    <>
+      {allDay.length > 0 && (
+        <>
+          <SectionTitle>לעשות מחר</SectionTitle>
+          <AgendaList>
+            {allDay.map((t) => (
+              <TaskRow key={t.id} task={t} meta={t.importance === "high" ? "משימה · חשוב" : "משימה"} />
+            ))}
+          </AgendaList>
+        </>
+      )}
+      <SectionTitle hint={timeline.length ? `${timeline.length} ${timeline.length === 1 ? "פריט" : "פריטים"}` : undefined}>סדר היום</SectionTitle>
+      {timeline.length ? (
+        <AgendaList label="סדר היום של מחר">
+          {timeline.map((r) =>
+            r.type === "due" ? (
+              <TaskRow key={`due:${r.id}`} task={r.task} time={toHm(new Date(r.start), tz)} meta={`משימה · עד ${toHm(new Date(r.start), tz)}`} />
+            ) : (
+              <AgendaRow key={`${r.type}:${r.id}:${r.start}`} entry={r} timeZone={tz} now={now} overlapsWith={overlap.get(`${r.id}:${r.start}`)} />
+            ),
+          )}
+        </AgendaList>
+      ) : (
+        <p className="rounded-[var(--radius-card)] border border-line bg-surface px-4 py-3 text-muted">אין אירועים מתוכננים למחר.</p>
+      )}
+    </>
+  );
+}
+
 export default function TodayPage() {
   const state = useAppState();
   const now = useNow();
   const tz = state.prefs.timeZone;
   const today = toYmd(now, tz);
+  const tomorrow = addDaysYmd(today, 1);
+  const [showTomorrow, setShowTomorrow] = useState(false);
 
   const agenda = useMemo(() => agendaForDay(state, today, tz).filter((e) => e.type === "event" || e.task.status !== "dropped"), [state, today, tz]);
   const overlap = useMemo(() => overlapTitles(agenda), [agenda]);
@@ -97,7 +145,13 @@ export default function TodayPage() {
   const ahead = agenda.filter((e) => new Date(e.end) > now);
   const current = ahead.find((e) => new Date(e.start) <= now);
   const next = ahead.find((e) => new Date(e.start) > now);
-  const tagFor = (e: (typeof agenda)[number]) => (e === current ? "עכשיו" : e === next && !current ? "הבא" : undefined);
+  const tagFor = (e: (typeof agenda)[number]) => {
+    if (e === current) return "עכשיו";
+    if (e !== next || current) return undefined;
+    const mins = Math.round((new Date(e.start).getTime() - now.getTime()) / 60000);
+    if (mins > 180) return "הבא";
+    return `הבא · בעוד ${mins < 60 ? `${Math.max(1, mins)} דק׳` : formatDurationHe(Math.round(mins / 15) * 15)}`;
+  };
 
   const hasEvents = agenda.some((e) => e.type === "event");
   const taskCount = late.length + todo.dueToday.length + todo.undated.length;
@@ -126,21 +180,46 @@ export default function TodayPage() {
 
   return (
     <>
-      <header className="flex items-end justify-between gap-3 pt-1">
+      <header className="flex items-start justify-between gap-3 pt-1">
         <div>
-          <h1 className="text-[1.75rem] font-bold leading-tight tracking-tight">היום</h1>
-          <p className="text-muted">{formatYmdHe(today)}</p>
+          <h1 className="text-[1.75rem] font-bold leading-tight tracking-tight">{showTomorrow ? "מחר" : "היום"}</h1>
+          <p className="text-muted">{formatYmdHe(showTomorrow ? tomorrow : today)}</p>
         </div>
-        <div className="flex items-center" aria-label="מעבר בין ימים">
-          <Link href={`/calendar?view=day&d=${addDaysYmd(today, -1)}`} aria-label="אתמול" className="flex h-10 w-10 items-center justify-center rounded-xl text-muted hover:bg-sunken">
-            <Icon.ChevronRight size={20} />
+        <div className="flex items-center gap-1">
+          <Link href={`/calendar?view=day&d=${showTomorrow ? tomorrow : today}`} aria-label="פתיחת היומן" className="flex h-11 w-11 items-center justify-center rounded-xl text-muted hover:bg-sunken">
+            <Icon.Calendar size={22} />
           </Link>
-          <Link href={`/calendar?view=day&d=${addDaysYmd(today, 1)}`} aria-label="מחר" className="flex h-10 w-10 items-center justify-center rounded-xl text-muted hover:bg-sunken">
-            <Icon.ChevronLeft size={20} />
+          <Link
+            href={showTomorrow ? `/add?date=${tomorrow}` : "/add"}
+            className="inline-flex min-h-11 items-center gap-1 rounded-xl border border-line bg-surface px-3.5 font-medium text-accent-strong hover:bg-sunken"
+          >
+            <Icon.Plus size={18} /> הוספה
           </Link>
         </div>
       </header>
 
+      <div role="radiogroup" aria-label="איזה יום" className="mt-3 inline-grid grid-cols-2 rounded-xl bg-sunken p-1">
+        {[
+          { v: false, label: "היום" },
+          { v: true, label: "מחר" },
+        ].map((o) => (
+          <button
+            key={o.label}
+            type="button"
+            role="radio"
+            aria-checked={showTomorrow === o.v}
+            onClick={() => setShowTomorrow(o.v)}
+            className={`min-h-9 min-w-20 rounded-lg px-4 text-[0.95rem] font-medium ${showTomorrow === o.v ? "bg-surface text-ink shadow-sm" : "text-muted"}`}
+          >
+            {o.label}
+          </button>
+        ))}
+      </div>
+
+      {showTomorrow ? (
+        <TomorrowView ymd={tomorrow} today={today} now={now} />
+      ) : (
+      <>
       <div className="mt-4">
         <ZoneBanner />
       </div>
@@ -241,6 +320,9 @@ export default function TodayPage() {
             </div>
           )}
         </>
+      )}
+
+      </>
       )}
 
       <p className="mt-8 text-center text-sm">

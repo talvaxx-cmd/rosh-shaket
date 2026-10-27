@@ -289,7 +289,7 @@ export function Notice({ tone = "info", children, title }: { tone?: "info" | "wa
 }
 
 export function Empty({ children }: { children: ReactNode }) {
-  return <p className="rounded-2xl border border-dashed border-line px-4 py-6 text-center text-muted">{children}</p>;
+  return <p className="rounded-[var(--radius-card)] border border-line bg-surface px-4 py-5 text-center text-muted">{children}</p>;
 }
 
 /** Visual + textual marker of an item's type (never color alone). */
