@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { Button, Card, Field, Icon, Notice, PageHeader, SectionTitle, inputClass } from "@/components/ui";
+import { PushSection } from "@/components/PushSection";
 import { SyncSection } from "@/components/SyncSection";
 import { emptyState } from "@/lib/domain/store-core";
 import type { Preferences } from "@/lib/domain/types";
@@ -164,8 +165,9 @@ export default function SettingsPage() {
             <input id="sumat" type="time" className={`${inputClass} ltr-nums`} value={p.dailySummaryAt} onChange={(e) => set({ dailySummaryAt: e.target.value })} />
           </Field>
         )}
+        <PushSection />
         <p className="text-sm text-muted">
-          חשוב לדעת: בגרסה הזו התראות מוצגות כשהאפליקציה פתוחה או פעילה ברקע בדפדפן. האפליקציה יודעת שהתראה נמסרה למערכת — לא שהיא נראתה. משלוח אמין גם כשהאפליקציה סגורה ידרוש שרת התראות (Push), בשלב הבא.
+          בלי ״התראות גם כשהאפליקציה סגורה״, תזכורות מוצגות רק כשהאפליקציה פתוחה או פעילה ברקע. בכל מקרה האפליקציה יודעת שהתראה נשלחה — לא שהיא נראתה.
         </p>
       </Card>
 

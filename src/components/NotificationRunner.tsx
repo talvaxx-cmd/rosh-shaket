@@ -6,6 +6,7 @@ import { dueNotifications, markShownOp, snoozeOp, isQuiet } from "@/lib/domain/r
 import { completeTaskOp, newId, touch } from "@/lib/domain/store-core";
 import type { AppState, Reminder, Task } from "@/lib/domain/types";
 import { registerServiceWorker, showNotification } from "@/lib/client/notifications";
+import { pushEnabledHere } from "@/lib/client/push";
 import { useActions, useAppState } from "@/lib/client/store";
 import { toHm, toYmd } from "@/lib/time";
 
@@ -27,26 +28,38 @@ export function NotificationRunner() {
     void registerServiceWorker();
   }, []);
 
-  // Actions pressed on a notification (handled by the service worker, relayed here).
+  // Actions pressed on a notification: relayed by the service worker while the app is open,
+  // or passed in the URL when the notification had to open the app (?na=action&nr=reminder).
   useEffect(() => {
-    if (!("serviceWorker" in navigator)) return;
-    const onMessage = (e: MessageEvent) => {
-      const msg = e.data as { type?: string; action?: string; reminderId?: string };
-      if (msg?.type !== "notification-action" || !msg.reminderId) return;
+    const handle = (action: string, reminderId: string) => {
       const s = stateRef.current;
-      const r = s.items[msg.reminderId] as Reminder | undefined;
+      const r = s.items[reminderId] as Reminder | undefined;
       if (!r || r.kind !== "reminder") return;
       const now = new Date();
-      if (msg.action === "snooze") {
+      if (action === "snooze") {
         actions.dispatch(snoozeOp(r, 10, now, newId("op")));
         actions.toast({ text: "התזכורת נדחתה ב־10 דקות. מועד האירוע לא השתנה." });
-      } else if (msg.action === "done") {
+      } else if (action === "done") {
         const target = s.items[r.target.id];
         if (target?.kind === "task") actions.run(completeTaskOp(target as Task, true, newId("op"), now));
         else actions.dispatch({ opId: newId("op"), label: "תזכורת סומנה", source: "manual", put: [touch(r, now, { lastOpenedAt: now.toISOString() })] });
       } else {
         actions.dispatch({ opId: newId("op"), label: "תזכורת נפתחה", source: "system", put: [touch(r, now, { lastOpenedAt: now.toISOString() })] });
       }
+    };
+
+    const params = new URLSearchParams(location.search);
+    const na = params.get("na");
+    const nr = params.get("nr");
+    if (na && nr) {
+      handle(na, nr);
+      history.replaceState(null, "", location.pathname);
+    }
+
+    if (!("serviceWorker" in navigator)) return;
+    const onMessage = (e: MessageEvent) => {
+      const msg = e.data as { type?: string; action?: string; reminderId?: string };
+      if (msg?.type === "notification-action" && msg.reminderId) handle(msg.action ?? "open", msg.reminderId);
     };
     navigator.serviceWorker.addEventListener("message", onMessage);
     return () => navigator.serviceWorker.removeEventListener("message", onMessage);
@@ -59,7 +72,8 @@ export function NotificationRunner() {
     const tick = async () => {
       const s = stateRef.current;
       const now = new Date();
-      const due = dueNotifications(s, now);
+      // With push on this device, the server delivers reminders (and marks them shown for all devices).
+      const due = pushEnabledHere() ? [] : dueNotifications(s, now);
       if (due.length) {
         // Merge bursts into one notification to avoid flooding.
         if (due.length > 2) {

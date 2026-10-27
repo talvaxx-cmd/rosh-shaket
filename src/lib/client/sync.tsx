@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useEffect, useMemo, useState, useSyncExternalStore, type ReactNode } from "react";
 import { useStoreInstance, type LocalStore } from "./store";
+import { disablePush } from "./push";
 import { SyncEngine, type SyncMeta, type SyncStore } from "./sync-engine";
 
 const META_KEY = "rosh-shaket:sync";
@@ -64,7 +65,16 @@ const Ctx = createContext<SyncEngine | null>(null);
 /** Runs sync in the background: on open, after changes, on return to the app, and every 30s while visible. */
 export function SyncProvider({ children }: { children: ReactNode }) {
   const store = useStoreInstance();
-  const [engine] = useState(() => new SyncEngine(adapter(store), { fetch: (...a) => fetch(...a), load: loadMeta, save: saveMeta }));
+  const [engine] = useState(
+    () =>
+      new SyncEngine(adapter(store), {
+        fetch: (...a) => fetch(...a),
+        load: loadMeta,
+        save: saveMeta,
+        // Unlinked elsewhere: this device's push subscription was removed with it on the server.
+        onUnlinked: () => void disablePush(null),
+      }),
+  );
 
   useEffect(() => {
     store.setChangeHook((ids, prefs) => engine.markDirty(ids, prefs));
@@ -95,6 +105,7 @@ export function useSync() {
   return useMemo(
     () => ({
       ...snap,
+      token: engine.token,
       syncNow: () => engine.syncNow(),
       /** Turns sync on with this device as the first one. Returns the recovery code (show once). */
       enable: async () => {
@@ -117,9 +128,15 @@ export function useSync() {
       devices: () => api<{ devices: DeviceInfo[] }>("/api/sync/devices", {}, engine.token).then((r) => r.devices),
       removeDevice: async (deviceId: string, isCurrent: boolean) => {
         await api("/api/sync/devices", { method: "DELETE", body: JSON.stringify({ deviceId }) }, engine.token);
-        if (isCurrent) engine.unlink();
+        if (isCurrent) {
+          engine.unlink();
+          void disablePush(null);
+        }
       },
-      unlinkLocal: () => engine.unlink(),
+      unlinkLocal: () => {
+        engine.unlink();
+        void disablePush(null);
+      },
     }),
     [engine, snap],
   );

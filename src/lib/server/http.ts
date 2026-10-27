@@ -1,22 +1,8 @@
 import "server-only";
-import { Pool } from "pg";
+import { getPool, syncConfigured } from "./pool";
 import { authenticate, type DeviceAuth } from "./sync-db";
 
-let pool: Pool | null = null;
-
-/** Sync is available when the deployment has a Postgres database (Railway sets DATABASE_URL). */
-export function syncConfigured(): boolean {
-  return Boolean(process.env.DATABASE_URL);
-}
-
-export function getPool(): Pool {
-  if (!pool) {
-    const url = process.env.DATABASE_URL!;
-    const local = /@(localhost|127\.0\.0\.1|[^/]*\.railway\.internal)[:/]/.test(url);
-    pool = new Pool({ connectionString: url, max: 5, ssl: local ? undefined : { rejectUnauthorized: false } });
-  }
-  return pool;
-}
+export { getPool, syncConfigured };
 
 export function bearer(req: Request): string | null {
   const h = req.headers.get("authorization") ?? "";
