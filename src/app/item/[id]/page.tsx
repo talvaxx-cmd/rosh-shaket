@@ -17,6 +17,7 @@ import {
   type RecurringScope,
 } from "@/lib/domain/store-core";
 import type { CalendarEvent, Importance, Reminder, Task, Unresolved } from "@/lib/domain/types";
+import { WhenFields } from "@/components/WhenFields";
 import { useActions, useAppState } from "@/lib/client/store";
 import { addDaysYmd, formatDurationHe, formatYmdHe, isYmd, minutesBetween, startOfDay, toHm, toYmd, zonedToInstant } from "@/lib/time";
 
@@ -196,14 +197,7 @@ function EventView({ ev, occKey }: { ev: CalendarEvent; occKey: string | null })
           <Field label="כותרת" htmlFor="t">
             <input id="t" className={inputClass} value={title} onChange={(e) => setTitle(e.target.value)} />
           </Field>
-          <div className="grid grid-cols-2 gap-3">
-            <Field label="תאריך" htmlFor="d">
-              <input id="d" type="date" className={`${inputClass} ltr-nums`} value={date} onChange={(e) => setDate(e.target.value)} />
-            </Field>
-            <Field label="שעה" htmlFor="h">
-              <input id="h" type="time" className={`${inputClass} ltr-nums`} value={time} onChange={(e) => setTime(e.target.value)} />
-            </Field>
-          </div>
+          <WhenFields idPrefix="ev" date={date} time={time} onDate={(v) => v && setDate(v)} onTime={(v) => v && setTime(v)} today={toYmd(new Date(), tz)} />
           <div className="grid grid-cols-2 gap-3">
             <Field label="משך (דקות)" htmlFor="dur" hint={formatDurationHe(duration)}>
               <input id="dur" type="number" min={5} step={5} className={`${inputClass} ltr-nums`} value={duration} onChange={(e) => setDuration(Math.max(5, Number(e.target.value) || 5))} />
@@ -280,13 +274,29 @@ function TaskView({ task }: { task: Task }) {
       due = zonedToInstant(addDaysYmd(date, 1), "00:00", tz).toISOString();
       dueIsDateOnly = true;
     }
+    // A time was added: it rings like anything else with a time.
+    const now = new Date();
+    const extra: Reminder[] =
+      due && !dueIsDateOnly && remindersFor(state, task.id).length === 0
+        ? state.prefs.defaultReminders.map((m) => ({
+            id: newId("r"),
+            kind: "reminder",
+            target: { kind: "task", id: task.id },
+            rule: { type: "before", minutes: m },
+            channel: "notification",
+            state: "pending",
+            createdAt: now.toISOString(),
+            updatedAt: now.toISOString(),
+          }))
+        : [];
     actions.run(
       {
         opId: newId("op"),
         label: `עדכון: ${title}`,
         source: "manual",
         put: [
-          touch(task, new Date(), {
+          ...extra,
+          touch(task, now, {
             unsure: undefined,
             title,
             due,
@@ -310,14 +320,23 @@ function TaskView({ task }: { task: Task }) {
         <Field label="כותרת" htmlFor="t">
           <input id="t" className={inputClass} value={title} onChange={(e) => setTitle(e.target.value)} />
         </Field>
-        <div className="grid grid-cols-2 gap-3">
-          <Field label="מועד אחרון" htmlFor="d">
-            <input id="d" type="date" className={`${inputClass} ltr-nums`} value={date} onChange={(e) => setDate(e.target.value)} />
-          </Field>
-          <Field label="עד שעה" htmlFor="h">
-            <input id="h" type="time" className={`${inputClass} ltr-nums`} value={time} onChange={(e) => setTime(e.target.value)} />
-          </Field>
-        </div>
+        <WhenFields
+          idPrefix="task"
+          date={date}
+          time={time}
+          onDate={setDate}
+          onTime={setTime}
+          today={toYmd(new Date(), tz)}
+          allowNoDate
+          allowNoTime
+          hint={
+            !date
+              ? "בלי תאריך — מחכה ביומן של היום עד שתסמנו שבוצע."
+              : time
+                ? `ביומן ב־${time}, עם תזכורת.`
+                : "ביומן של היום הזה, בלי שעה. רוצים תזכורת? הוסיפו שעה."
+          }
+        />
         <div className="grid grid-cols-2 gap-3">
           <Field label="משך משוער (דקות)" htmlFor="dur" hint={task.durationAssumed ? "הערכה — אפשר לעדכן" : undefined}>
             <input id="dur" type="number" min={5} step={5} className={`${inputClass} ltr-nums`} value={duration} placeholder="לא ידוע" onChange={(e) => setDuration(e.target.value ? Math.max(5, Number(e.target.value)) : "")} />

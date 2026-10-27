@@ -5,6 +5,7 @@ import type { DraftItem, Uncertainty } from "@/lib/extraction/draft";
 import { describeRecurrenceHe } from "@/lib/domain/recurrence";
 import { formatDurationHe, formatYmdHe, hmToMinutes, minutesToHm, relativeDayHe, toHm } from "@/lib/time";
 import { Button, Chip, Field, Icon, KindBadge, cx, inputClass } from "./ui";
+import { WhenFields } from "./WhenFields";
 
 const DURATIONS = [15, 30, 45, 60, 90, 120];
 const REMINDERS: { m: number; label: string }[] = [
@@ -96,14 +97,16 @@ export function DraftCard({
         {d.kind === "unresolved" && d.question && <p className="rounded-xl bg-warn-soft px-3 py-2 text-warn">{d.question}</p>}
 
         {d.kind !== "unresolved" && (
-          <div className="grid grid-cols-2 gap-3">
-            <Field label={d.kind === "event" ? "תאריך" : "מועד אחרון (לא חובה)"} htmlFor={id("date")}>
-              <input id={id("date")} type="date" className={cx(inputClass, "ltr-nums")} value={d.date ?? ""} onChange={(e) => set({ date: e.target.value || null }, e.target.value ? ["date", "due"] : [])} />
-            </Field>
-            <Field label={d.kind === "event" ? "שעה" : "עד שעה (לא חובה)"} htmlFor={id("time")}>
-              <input id={id("time")} type="time" className={cx(inputClass, "ltr-nums")} value={d.time ?? ""} onChange={(e) => set({ time: e.target.value || null }, e.target.value ? ["time"] : [])} />
-            </Field>
-          </div>
+          <WhenFields
+            idPrefix={id("when")}
+            date={d.date ?? ""}
+            time={d.time ?? ""}
+            onDate={(v) => set({ date: v || null, ...(v ? {} : { time: null }) }, v ? ["date", "due"] : [])}
+            onTime={(v) => set({ time: v || null }, v ? ["time"] : [])}
+            today={today}
+            allowNoDate={d.kind === "task"}
+            allowNoTime={d.kind === "task"}
+          />
         )}
 
         {d.date && (
