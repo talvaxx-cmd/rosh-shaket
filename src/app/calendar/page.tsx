@@ -1,16 +1,149 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useMemo } from "react";
 import { AgendaRow } from "@/components/AgendaRow";
-import { Button, Chip, Empty, Icon, PageHeader, cx } from "@/components/ui";
-import { agendaForDay } from "@/lib/domain/agenda";
+import { Icon, cx } from "@/components/ui";
+import { agendaForDay, overlaps, taskDueYmd, type AgendaEntry } from "@/lib/domain/agenda";
+import { tasks as allTasks } from "@/lib/domain/store-core";
+import type { AppState, Task } from "@/lib/domain/types";
 import { useAppState, useNow } from "@/lib/client/store";
-import { HEBREW_WEEKDAYS, addDaysYmd, formatYmdHe, isYmd, parseYmd, relativeDayHe, toHm, toYmd, weekdayOfYmd } from "@/lib/time";
+import { HEBREW_WEEKDAYS, addDaysYmd, formatYmdHe, isYmd, parseYmd, toHm, toYmd, weekdayOfYmd, type Ymd } from "@/lib/time";
 
 type View = "day" | "week" | "month";
 
-const MONTH_NAMES = ["ינואר", "פברואר", "מרץ", "אפריל", "מאי", "יוני", "יולי", "אוגוסט", "ספטמבר", "אוקטובר", "נובמבר", "דצמבר"];
+const VIEWS: { v: View; label: string }[] = [
+  { v: "day", label: "יום" },
+  { v: "week", label: "שבוע" },
+  { v: "month", label: "חודש" },
+];
+const MONTHS = ["ינואר", "פברואר", "מרץ", "אפריל", "מאי", "יוני", "יולי", "אוגוסט", "ספטמבר", "אוקטובר", "נובמבר", "דצמבר"];
+const MONTHS_IN = ["בינואר", "בפברואר", "במרץ", "באפריל", "במאי", "ביוני", "ביולי", "באוגוסט", "בספטמבר", "באוקטובר", "בנובמבר", "בדצמבר"];
+/** Hebrew day letters — unambiguous, unlike first letters of the names (ר/ש repeat). */
+const DAY_LETTERS = ["א׳", "ב׳", "ג׳", "ד׳", "ה׳", "ו׳", "ש׳"];
+
+function weekRangeLabel(start: Ymd): string {
+  const end = addDaysYmd(start, 6);
+  const a = parseYmd(start);
+  const b = parseYmd(end);
+  if (a.m === b.m) return `${a.d}–${b.d} ${MONTHS_IN[a.m - 1]}`;
+  return `${a.d} ${MONTHS_IN[a.m - 1]} – ${b.d} ${MONTHS_IN[b.m - 1]}`;
+}
+
+/** Open tasks due on a day that have no time slot — shown under that day's timeline. */
+function dueTasksOn(state: AppState, ymd: Ymd, tz: string): Task[] {
+  return allTasks(state).filter((t) => t.status === "open" && !t.scheduled && taskDueYmd(t, tz) === ymd);
+}
+
+function TodayTag() {
+  return <span className="rounded-full bg-accent-soft px-2 py-0.5 text-[0.8rem] font-medium text-accent-strong">היום</span>;
+}
+
+function EmptyDay({ ymd, isToday }: { ymd: Ymd; isToday: boolean }) {
+  return (
+    <div className="rounded-2xl border border-line bg-surface px-4 py-5 text-center">
+      <p className="font-medium">אין אירועים או משימות מתוזמנים {isToday ? "להיום" : "ליום הזה"}</p>
+      <p className="mt-1 text-[0.95rem] text-muted">אפשר להוסיף בהקלדה או בקול — למשל ״מחר בתשע פגישה עם דני״.</p>
+      <Link
+        href={`/add?manual=event&date=${ymd}`}
+        className="mt-3 inline-flex min-h-11 items-center gap-1.5 rounded-full bg-accent px-5 font-medium text-on-accent hover:bg-accent-strong"
+      >
+        <Icon.Plus size={18} /> הוספת אירוע או משימה
+      </Link>
+    </div>
+  );
+}
+
+function DayAgenda({ state, ymd, today, now }: { state: AppState; ymd: Ymd; today: Ymd; now: Date }) {
+  const tz = state.prefs.timeZone;
+  const entries = agendaForDay(state, ymd, tz);
+  const due = dueTasksOn(state, ymd, tz);
+  // Each event that overlaps another event that day → the other one's title.
+  const overlap = new Map<string, string>();
+  const evs = entries.filter((e) => e.type === "event");
+  for (const a of evs) {
+    const other = evs.find((b) => b !== a && overlaps(a, b));
+    if (other?.type === "event") overlap.set(`${a.id}:${a.start}`, other.occ.title);
+  }
+  if (entries.length === 0 && due.length === 0) return <EmptyDay ymd={ymd} isToday={ymd === today} />;
+  return (
+    <div className="grid gap-3">
+      {entries.length > 0 && (
+        <ul className="grid gap-2">
+          {entries.map((e) => (
+            <AgendaRow key={`${e.type}:${e.id}:${e.start}`} entry={e} timeZone={tz} now={now} overlapsWith={overlap.get(`${e.id}:${e.start}`)} />
+          ))}
+        </ul>
+      )}
+      {due.length > 0 && (
+        <section aria-label="משימות ליום הזה, בלי שעה">
+          <h3 className="mb-1 text-sm font-medium text-muted">משימות ליום הזה · בלי שעה</h3>
+          <ul className="grid gap-1.5">
+            {due.map((t) => (
+              <li key={t.id}>
+                <Link href={`/item/${t.id}`} className="flex items-center gap-2.5 rounded-xl border border-dashed border-line bg-surface px-3 py-2.5">
+                  <span className="h-5 w-5 shrink-0 rounded-full border-2 border-muted" aria-hidden />
+                  <span className="sr-only">משימה: </span>
+                  <span className="flex-1">{t.title}</span>
+                  {!t.dueIsDateOnly && t.due && <span className="text-sm text-muted">עד <span className="ltr-nums">{toHm(new Date(t.due), tz)}</span></span>}
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+    </div>
+  );
+}
+
+function WeekRow({ ymd, entries, dueCount, isToday, onOpen, tz }: { ymd: Ymd; entries: AgendaEntry[]; dueCount: number; isToday: boolean; onOpen: () => void; tz: string }) {
+  const empty = entries.length === 0 && dueCount === 0;
+  return (
+    <li>
+      <button
+        type="button"
+        onClick={onOpen}
+        aria-label={`${formatYmdHe(ymd)}${isToday ? " (היום)" : ""}: ${empty ? "אין פריטים מתוזמנים" : `${entries.length} פריטים`}`}
+        className={cx(
+          "flex w-full items-start gap-3 rounded-xl border bg-surface px-3 text-start hover:bg-sunken",
+          empty ? "py-2" : "py-2.5",
+          isToday ? "border-accent" : "border-line",
+        )}
+      >
+        <span className="w-[5.75rem] shrink-0">
+          <span className="block whitespace-nowrap font-semibold leading-tight">יום {HEBREW_WEEKDAYS[weekdayOfYmd(ymd)]}</span>
+          <span className="block whitespace-nowrap text-sm text-muted">{formatYmdHe(ymd, { withWeekday: false })}</span>
+        </span>
+        <span className="min-w-0 flex-1">
+          {isToday && (
+            <span className="mb-1 inline-block">
+              <TodayTag />
+            </span>
+          )}
+          {empty ? (
+            <span className="block pt-0.5 text-[0.95rem] text-muted">אין פריטים מתוזמנים</span>
+          ) : (
+            <span className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-1">
+              {entries.map((e) => (
+                <span key={`${e.type}:${e.id}:${e.start}`} className="flex min-w-0 items-center gap-2 text-[0.95rem]">
+                  <span className="w-11 shrink-0 text-muted ltr-nums">{toHm(new Date(e.start), tz)}</span>
+                  {e.type === "event" ? (
+                    <Icon.Clock size={15} className="shrink-0 text-accent" />
+                  ) : (
+                    <span className="h-3.5 w-3.5 shrink-0 rounded-full border-2 border-muted" aria-hidden />
+                  )}
+                  <span className="min-w-0 truncate">{e.type === "event" ? e.occ.title : e.task.title}</span>
+                </span>
+              ))}
+              {dueCount > 0 && <span className="text-sm text-muted">+ {dueCount === 1 ? "משימה אחת" : `${dueCount} משימות`} בלי שעה</span>}
+            </span>
+          )}
+        </span>
+      </button>
+    </li>
+  );
+}
 
 function CalendarInner() {
   const state = useAppState();
@@ -19,145 +152,146 @@ function CalendarInner() {
   const params = useSearchParams();
   const tz = state.prefs.timeZone;
   const today = toYmd(now, tz);
-  const view = (params.get("view") as View) || "day";
+  const view = (["day", "week", "month"].includes(params.get("view") ?? "") ? params.get("view") : "day") as View;
   const raw = params.get("d");
   const day = isYmd(raw) ? raw : today;
 
-  const go = (v: View, d: string) => router.replace(`/calendar?view=${v}&d=${d}`, { scroll: false });
-
-  const step = (dir: 1 | -1) => {
-    if (view === "day") go(view, addDaysYmd(day, dir));
-    else if (view === "week") go(view, addDaysYmd(day, dir * 7));
-    else {
-      const { y, m } = parseYmd(day);
-      const t = new Date(Date.UTC(y, m - 1 + dir, 1));
-      go(view, `${t.getUTCFullYear()}-${String(t.getUTCMonth() + 1).padStart(2, "0")}-01`);
-    }
-  };
+  const go = (v: View, d: Ymd) => router.replace(`/calendar?view=${v}&d=${d}`, { scroll: false });
 
   const weekStart = addDaysYmd(day, -weekdayOfYmd(day));
   const weekDays = useMemo(() => Array.from({ length: 7 }, (_, i) => addDaysYmd(weekStart, i)), [weekStart]);
-
   const { y, m } = parseYmd(day);
   const monthFirst = `${y}-${String(m).padStart(2, "0")}-01`;
   const gridStart = addDaysYmd(monthFirst, -weekdayOfYmd(monthFirst));
   const monthCells = useMemo(() => Array.from({ length: 42 }, (_, i) => addDaysYmd(gridStart, i)), [gridStart]);
 
-  const counts = useMemo(() => {
-    const days = view === "month" ? monthCells : view === "week" ? weekDays : [day];
-    return Object.fromEntries(days.map((d) => [d, agendaForDay(state, d, tz)]));
-  }, [state, tz, view, monthCells, weekDays, day]);
+  const byDay = useMemo(() => {
+    const days = view === "month" ? monthCells : view === "week" ? weekDays : [];
+    return Object.fromEntries(days.map((d) => [d, { entries: agendaForDay(state, d, tz), due: dueTasksOn(state, d, tz).length }]));
+  }, [state, tz, view, monthCells, weekDays]);
 
-  const title =
-    view === "day" ? relativeDayHe(day, today) : view === "week" ? `שבוע ${formatYmdHe(weekStart, { withWeekday: false })}` : `${MONTH_NAMES[m - 1]} ${y}`;
+  const step = (dir: 1 | -1) => {
+    if (view === "day") go(view, addDaysYmd(day, dir));
+    else if (view === "week") go(view, addDaysYmd(day, dir * 7));
+    else {
+      const t = new Date(Date.UTC(y, m - 1 + dir, 1));
+      go(view, `${t.getUTCFullYear()}-${String(t.getUTCMonth() + 1).padStart(2, "0")}-01`);
+    }
+  };
+
+  const containsToday =
+    view === "day" ? day === today : view === "week" ? today >= weekStart && today <= addDaysYmd(weekStart, 6) : today.slice(0, 7) === monthFirst.slice(0, 7);
+
+  const periodLabel = view === "day" ? formatYmdHe(day) : view === "week" ? weekRangeLabel(weekStart) : `${MONTHS[m - 1]} ${y}`;
+  const stepName = view === "day" ? "יום" : view === "week" ? "שבוע" : "חודש";
 
   return (
     <>
-      <PageHeader title="יומן" />
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-        <div className="flex gap-2" role="group" aria-label="תצוגה">
-          <Chip active={view === "day"} onClick={() => go("day", day)}>יום</Chip>
-          <Chip active={view === "week"} onClick={() => go("week", day)}>שבוע</Chip>
-          <Chip active={view === "month"} onClick={() => go("month", day)}>חודש</Chip>
-        </div>
-        <div className="flex items-center gap-1">
-          <Button size="sm" variant="ghost" aria-label="הקודם" onClick={() => step(-1)}>
-            <Icon.ChevronRight size={20} />
-          </Button>
-          <Button size="sm" variant="ghost" onClick={() => go(view, today)}>
-            היום
-          </Button>
-          <Button size="sm" variant="ghost" aria-label="הבא" onClick={() => step(1)}>
-            <Icon.ChevronLeft size={20} />
-          </Button>
-        </div>
-      </div>
-      <h2 className="mb-3 text-xl font-semibold" aria-live="polite">
-        {title}
-        {view === "day" && day !== today && <span className="ms-2 text-base font-normal text-muted">{formatYmdHe(day, { withWeekday: false })}</span>}
-      </h2>
+      <header className="flex items-center justify-between gap-3 pt-1">
+        <h1 className="text-2xl font-semibold tracking-tight">יומן</h1>
+        <Link
+          href={`/add?manual=event&date=${day}`}
+          className="inline-flex min-h-10 items-center gap-1 rounded-full border border-line bg-surface px-4 font-medium text-accent-strong hover:bg-sunken"
+        >
+          <Icon.Plus size={18} /> הוספה
+        </Link>
+      </header>
 
-      {view === "day" &&
-        ((counts[day] ?? []).length ? (
-          <ul className="grid gap-2">
-            {(counts[day] ?? []).map((e) => (
-              <AgendaRow key={`${e.type}:${e.id}:${e.start}`} entry={e} timeZone={tz} now={now} />
-            ))}
-          </ul>
-        ) : (
-          <Empty>אין אירועים או משימות משובצות ביום הזה.</Empty>
+      <div role="radiogroup" aria-label="תצוגה" className="mt-3 grid grid-cols-3 rounded-full bg-sunken p-1">
+        {VIEWS.map(({ v, label }) => (
+          <button
+            key={v}
+            type="button"
+            role="radio"
+            aria-checked={view === v}
+            onClick={() => go(v, day)}
+            className={cx("min-h-10 rounded-full font-medium transition-colors", view === v ? "bg-surface text-ink shadow-sm" : "text-muted hover:text-ink")}
+          >
+            {label}
+          </button>
         ))}
+      </div>
+
+      <div className="mt-3 mb-3 flex items-center gap-1">
+        <button type="button" aria-label={`ה${stepName} הקודם`} onClick={() => step(-1)} className="flex h-10 w-10 items-center justify-center rounded-full hover:bg-sunken">
+          <Icon.ChevronRight size={20} />
+        </button>
+        <h2 className="flex flex-1 items-center justify-center gap-2 text-center text-lg font-semibold" aria-live="polite">
+          {periodLabel}
+          {view === "day" && day === today && <TodayTag />}
+        </h2>
+        <button type="button" aria-label={`ה${stepName} הבא`} onClick={() => step(1)} className="flex h-10 w-10 items-center justify-center rounded-full hover:bg-sunken">
+          <Icon.ChevronLeft size={20} />
+        </button>
+        {!containsToday && (
+          <button type="button" onClick={() => go(view, today)} className="min-h-10 rounded-full px-3 text-sm font-medium text-accent-strong hover:bg-accent-soft">
+            להיום
+          </button>
+        )}
+      </div>
+
+      {view === "day" && <DayAgenda state={state} ymd={day} today={today} now={now} />}
 
       {view === "week" && (
-        <div className="grid gap-3">
-          {weekDays.map((d) => {
-            const entries = counts[d] ?? [];
-            return (
-              <section key={d} aria-label={formatYmdHe(d)} className={cx("rounded-2xl border bg-surface p-3", d === today ? "border-accent" : "border-line")}>
-                <button type="button" onClick={() => go("day", d)} className="mb-1 flex w-full items-baseline justify-between text-start">
-                  <span className="font-semibold">{relativeDayHe(d, today) === formatYmdHe(d) ? `יום ${HEBREW_WEEKDAYS[weekdayOfYmd(d)]}` : relativeDayHe(d, today)}</span>
-                  <span className="text-sm text-muted">{formatYmdHe(d, { withWeekday: false })}</span>
-                </button>
-                {entries.length === 0 ? (
-                  <p className="text-sm text-faint">פנוי</p>
-                ) : (
-                  <ul className="grid gap-1">
-                    {entries.map((e) => (
-                      <li key={`${e.type}:${e.id}:${e.start}`} className="flex gap-2 text-[0.95rem]">
-                        <span className="w-12 shrink-0 text-muted ltr-nums">{toHm(new Date(e.start), tz)}</span>
-                        <span className="flex items-center gap-1.5">
-                          {e.type === "event" ? <Icon.Clock size={15} className="text-accent" /> : <span className="h-3.5 w-3.5 rounded-full border-2 border-muted" aria-hidden />}
-                          <span className="sr-only">{e.type === "event" ? "אירוע:" : "משימה:"}</span>
-                          {e.type === "event" ? e.occ.title : e.task.title}
-                        </span>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </section>
-            );
-          })}
-        </div>
+        <ul className="grid gap-1.5">
+          {weekDays.map((d) => (
+            <WeekRow key={d} ymd={d} entries={byDay[d]?.entries ?? []} dueCount={byDay[d]?.due ?? 0} isToday={d === today} tz={tz} onOpen={() => go("day", d)} />
+          ))}
+        </ul>
       )}
 
       {view === "month" && (
-        <div role="grid" aria-label={title} className="grid grid-cols-7 gap-1">
-          {HEBREW_WEEKDAYS.map((w) => (
-            <div key={w} role="columnheader" className="pb-1 text-center text-sm text-muted">
-              {w === "שבת" ? "ש׳" : w[0] + "׳"}
-            </div>
-          ))}
-          {monthCells.map((d) => {
-            const entries = counts[d] ?? [];
-            const inMonth = d.slice(0, 7) === monthFirst.slice(0, 7);
-            const ev = entries.filter((e) => e.type === "event").length;
-            const tk = entries.length - ev;
-            return (
-              <button
-                key={d}
-                type="button"
-                role="gridcell"
-                onClick={() => go("day", d)}
-                aria-label={`${formatYmdHe(d)}: ${ev} אירועים, ${tk} משימות`}
-                className={cx(
-                  "flex aspect-square flex-col items-center justify-start rounded-xl border p-1 text-sm",
-                  d === today ? "border-accent bg-accent-soft font-semibold" : "border-transparent hover:bg-sunken",
-                  !inMonth && "opacity-40",
-                )}
-              >
-                <span className="ltr-nums">{parseYmd(d).d}</span>
-                <span className="mt-auto flex gap-0.5" aria-hidden>
-                  {Array.from({ length: Math.min(ev, 3) }, (_, i) => (
-                    <span key={`e${i}`} className="h-1.5 w-1.5 rounded-full bg-accent" />
-                  ))}
-                  {Array.from({ length: Math.min(tk, 2) }, (_, i) => (
-                    <span key={`t${i}`} className="h-1.5 w-1.5 rounded-full border border-muted" />
-                  ))}
-                </span>
-              </button>
-            );
-          })}
-        </div>
+        <>
+          <div role="grid" aria-label={periodLabel} className="grid grid-cols-7 gap-0.5">
+            {DAY_LETTERS.map((w, i) => (
+              <div key={w} role="columnheader" aria-label={`יום ${HEBREW_WEEKDAYS[i]}`} className="pb-1 text-center text-sm font-medium text-muted">
+                {w}
+              </div>
+            ))}
+            {monthCells.map((d) => {
+              const info = byDay[d];
+              const ev = info?.entries.filter((e) => e.type === "event").length ?? 0;
+              const tk = (info?.entries.length ?? 0) - ev + (info?.due ?? 0);
+              const inMonth = d.slice(0, 7) === monthFirst.slice(0, 7);
+              const selected = d === day;
+              const isToday = d === today;
+              return (
+                <button
+                  key={d}
+                  type="button"
+                  role="gridcell"
+                  aria-selected={selected}
+                  aria-current={isToday ? "date" : undefined}
+                  onClick={() => go("month", d)}
+                  aria-label={`${formatYmdHe(d)}${isToday ? " (היום)" : ""}: ${ev} אירועים, ${tk} משימות`}
+                  className={cx(
+                    "flex h-14 flex-col items-center justify-start rounded-xl pt-1.5 text-[0.95rem]",
+                    selected ? "bg-accent font-semibold text-on-accent" : "hover:bg-sunken",
+                    !selected && isToday && "font-semibold text-accent-strong ring-2 ring-inset ring-accent",
+                    !inMonth && !selected && "opacity-40",
+                  )}
+                >
+                  <span className="ltr-nums">{parseYmd(d).d}</span>
+                  <span className="mt-1 flex h-2 items-center gap-0.5" aria-hidden>
+                    {ev > 0 && <span className={cx("h-1.5 w-1.5 rounded-full", selected ? "bg-on-accent" : "bg-accent")} />}
+                    {ev > 1 && <span className={cx("h-1.5 w-1.5 rounded-full", selected ? "bg-on-accent" : "bg-accent")} />}
+                    {tk > 0 && <span className={cx("h-1.5 w-1.5 rounded-full border", selected ? "border-on-accent" : "border-muted")} />}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+          <p className="mt-2 flex items-center justify-center gap-4 text-sm text-muted" aria-hidden>
+            <span className="flex items-center gap-1"><span className="h-1.5 w-1.5 rounded-full bg-accent" /> אירוע</span>
+            <span className="flex items-center gap-1"><span className="h-1.5 w-1.5 rounded-full border border-muted" /> משימה</span>
+          </p>
+          <section className="mt-4" aria-label={`סדר היום של ${formatYmdHe(day)}`}>
+            <h3 className="mb-2 flex items-center gap-2 font-semibold">
+              {formatYmdHe(day)} {day === today && <TodayTag />}
+            </h3>
+            <DayAgenda state={state} ymd={day} today={today} now={now} />
+          </section>
+        </>
       )}
     </>
   );

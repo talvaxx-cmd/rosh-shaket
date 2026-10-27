@@ -8,7 +8,7 @@ import { formatDurationHe, minutesBetween, toHm } from "@/lib/time";
 import { Icon, cx } from "./ui";
 
 /** One line on a timeline. Events and tasks differ by shape, icon and label — not by color alone. */
-export function AgendaRow({ entry, timeZone, now, emphasize }: { entry: AgendaEntry; timeZone: string; now: Date; emphasize?: boolean }) {
+export function AgendaRow({ entry, timeZone, now, emphasize, overlapsWith }: { entry: AgendaEntry; timeZone: string; now: Date; emphasize?: boolean; overlapsWith?: string }) {
   const actions = useActions();
   const start = toHm(new Date(entry.start), timeZone);
   const end = toHm(new Date(entry.end), timeZone);
@@ -28,7 +28,7 @@ export function AgendaRow({ entry, timeZone, now, emphasize }: { entry: AgendaEn
           )}
         >
           <Icon.Clock size={20} className="mt-0.5 shrink-0 text-accent-strong" />
-          <span className="flex-1">
+          <span className="min-w-0 flex-1">
             <span className="sr-only">אירוע: </span>
             <span className="block font-medium">{o.title}</span>
             <span className="block text-sm text-muted">
@@ -44,6 +44,12 @@ export function AgendaRow({ entry, timeZone, now, emphasize }: { entry: AgendaEn
               {o.recurring && " · חוזר"}
               {current && <strong className="font-semibold text-accent-strong"> · עכשיו</strong>}
             </span>
+            {overlapsWith && (
+              <span className="mt-1 flex min-w-0 items-center gap-1 text-sm font-medium text-danger">
+                <Icon.Alert size={15} className="shrink-0" />
+                <span className="min-w-0 truncate">חופף ל״{overlapsWith}״</span>
+              </span>
+            )}
           </span>
         </Link>
       </li>

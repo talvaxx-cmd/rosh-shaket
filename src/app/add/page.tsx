@@ -6,13 +6,13 @@ import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { DraftCard } from "@/components/DraftCard";
 import { Button, Icon, Notice, PageHeader, cx } from "@/components/ui";
 import { newId } from "@/lib/domain/store-core";
-import type { DraftItem, ExtractResponse } from "@/lib/extraction/draft";
+import { emptyDraft, type DraftItem, type ExtractResponse } from "@/lib/extraction/draft";
 import { draftConflicts, draftsToOp, isReady } from "@/lib/extraction/validate";
 import { MicPermissionTip } from "@/components/MicPermissionTip";
 import { SPEECH_ERROR_TEXT, useElapsed, useSpeech } from "@/lib/client/speech";
 import { notificationPermission, requestNotificationPermission } from "@/lib/client/notifications";
 import { useActions, useAppState } from "@/lib/client/store";
-import { toYmd } from "@/lib/time";
+import { isYmd, toYmd } from "@/lib/time";
 
 const DRAFT_KEY = "rosh-shaket:draft";
 const SAMPLE = "מחר בשלוש פגישה עם דני במשרד, שעה בערך. תזכיר לי חצי שעה לפני, ותוסיף להכין את ההצעה בבוקר.";
@@ -41,11 +41,30 @@ function AddInner() {
   const [saveError, setSaveError] = useState<string | null>(null);
   // One id per review session: a retried save can never create duplicates.
   const opId = useRef(newId("save"));
-  const source = useRef<"voice" | "text">("text");
+  const source = useRef<"voice" | "text" | "manual">("text");
+  const [manual, setManual] = useState(false);
   const textRef = useRef<HTMLTextAreaElement>(null);
+
+  /** Manual add: one empty card of the chosen kind, straight to review. */
+  function startManual(kind: "event" | "task", date?: string | null) {
+    const d = emptyDraft(newId("m"), kind, "");
+    d.date = isYmd(date) ? date : kind === "event" ? toYmd(new Date(), tz) : null;
+    if (kind === "event") d.durationMin = prefs.defaultEventMin;
+    setDrafts([d]);
+    setMeta(null);
+    setManual(true);
+    source.current = "manual";
+    opId.current = newId("save");
+    setPhase("review");
+  }
 
   // Restore an unsaved draft (only if the user allowed local drafts).
   useEffect(() => {
+    const manualKind = params.get("manual");
+    if (manualKind === "event" || manualKind === "task") {
+      startManual(manualKind, params.get("date"));
+      return;
+    }
     const sample = params.get("sample");
     const prefill = params.get("text");
     if (sample || prefill) {
@@ -110,6 +129,7 @@ function AddInner() {
       const data = (await res.json()) as ExtractResponse;
       setDrafts(data.items);
       setMeta({ mode: data.mode, note: data.note, warning: data.warning });
+      setManual(false);
       opId.current = newId("save");
       setPhase("review");
     } catch {
@@ -146,8 +166,8 @@ function AddInner() {
     return (
       <>
         <PageHeader
-          title="בדיקה לפני שמירה"
-          subtitle={drafts.length ? `${drafts.length === 1 ? "פריט אחד" : `${drafts.length} פריטים`} — אפשר לתקן, להסיר או לשמור` : undefined}
+          title={manual ? (drafts[0]?.kind === "task" ? "משימה חדשה" : "אירוע חדש") : "בדיקה לפני שמירה"}
+          subtitle={manual ? "ממלאים את הפרטים ושומרים" : drafts.length ? `${drafts.length === 1 ? "פריט אחד" : `${drafts.length} פריטים`} — אפשר לתקן, להסיר או לשמור` : undefined}
         />
         <div className="grid gap-3">
           {meta?.warning && <Notice tone="warn">{meta.warning}</Notice>}
@@ -186,8 +206,8 @@ function AddInner() {
               <Icon.Check />
               {saveError ? "ניסיון חוזר" : drafts.length > 1 ? `שמירת ${drafts.length} פריטים` : "שמירה"}
             </Button>
-            <Button size="lg" onClick={() => setPhase("input")}>
-              חזרה לטקסט
+            <Button size="lg" onClick={() => (manual ? router.back() : setPhase("input"))}>
+              {manual ? "ביטול" : "חזרה לטקסט"}
             </Button>
           </div>
           <button
@@ -208,7 +228,7 @@ function AddInner() {
 
   return (
     <>
-      <PageHeader title="מה צריך?" subtitle="אומרים בחופשיות — כמה דברים ברצף זה בסדר גמור." />
+      <PageHeader title="מה צריך?" subtitle="אומרים בחופשיות — כמה דברים ברצף זה בסדר גמור. אפשר גם להקליד או להוסיף ידנית." />
 
       <div className="flex flex-col items-center gap-3 py-4">
         {speech.supported ? (
@@ -300,6 +320,17 @@ function AddInner() {
           לנסות עם משפט לדוגמה
         </button>
       )}
+      <div className="mt-6 rounded-2xl border border-line bg-surface p-3">
+        <p className="mb-2 text-sm font-medium text-muted">או הוספה ידנית, בלי לדבר</p>
+        <div className="grid grid-cols-2 gap-2">
+          <Button onClick={() => startManual("event", params.get("date"))}>
+            <Icon.Clock size={18} /> אירוע בשעה קבועה
+          </Button>
+          <Button onClick={() => startManual("task", params.get("date"))}>
+            <Icon.Check size={18} /> משימה
+          </Button>
+        </div>
+      </div>
       <p className="mt-6 text-sm text-faint">
         שום דבר לא נשמר לפני שתאשרו. ההקלטה עצמה לא נשמרת. <Link href="/settings#privacy" className="underline underline-offset-4">פרטיות</Link>
       </p>

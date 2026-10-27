@@ -80,17 +80,20 @@ function MicButton() {
       aria-pressed={speech.recording}
       aria-label={speech.recording ? "עצירת ההקלטה" : "הקלטה — לומר מה צריך"}
       className={cx(
-        // Large hit area (80px) around the 68px visual circle.
-        "flex h-20 w-20 touch-manipulation select-none items-center justify-center rounded-full",
+        // Large hit area: the circle plus its label.
+        "flex min-h-20 w-24 touch-manipulation select-none flex-col items-center justify-start gap-1 rounded-2xl",
       )}
     >
       <span
         className={cx(
-          "flex h-[4.25rem] w-[4.25rem] items-center justify-center rounded-full text-on-accent shadow-lg ring-4 ring-bg transition-colors",
+          "flex h-16 w-16 items-center justify-center rounded-full text-on-accent shadow-lg ring-4 ring-bg transition-colors",
           speech.recording ? "recording-pulse bg-accent-strong" : "bg-accent active:bg-accent-strong",
         )}
       >
         {speech.recording ? <Icon.Stop size={28} /> : <Icon.Mic size={30} />}
+      </span>
+      <span className={cx("text-[0.8rem] leading-none", speech.recording ? "font-semibold text-accent-strong" : "text-muted")}>
+        {speech.recording ? "עצירה" : "הוספה בקול"}
       </span>
     </button>
   );
@@ -121,7 +124,7 @@ export function AppShell({ children }: { children: ReactNode }) {
               const active = href === "/" ? pathname === "/" : pathname.startsWith(href);
               if (primary) {
                 return (
-                  <li key={href} className="-mt-7">
+                  <li key={href} className="-mt-6">
                     <MicButton />
                   </li>
                 );
