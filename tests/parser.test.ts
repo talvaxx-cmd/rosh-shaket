@@ -135,3 +135,10 @@ describe("no invented deadlines", () => {
     ]);
   });
 });
+
+describe("separate recordings", () => {
+  it("two recordings on separate lines stay separate items", () => {
+    const items = parse("לקנות חלב\nלתאם טכנאי");
+    expect(items.map((i) => i.title)).toEqual(["לקנות חלב", "לתאם טכנאי"]);
+  });
+});

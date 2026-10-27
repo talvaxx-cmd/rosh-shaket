@@ -1,7 +1,8 @@
 "use client";
 
 import { createContext, useContext, useEffect, useState, useSyncExternalStore, type ReactNode } from "react";
-import { SpeechController, browserRecognitionCtor, type SpeechError } from "./speech-controller";
+import { RecorderController, browserRecorderDeps } from "./recorder-controller";
+import { SpeechController, browserRecognitionCtor, type EngineController, type SpeechError } from "./speech-controller";
 
 export type { SpeechError, SpeechStatus } from "./speech-controller";
 
@@ -11,14 +12,59 @@ export const SPEECH_ERROR_TEXT: Record<SpeechError, string> = {
   network: "התמלול דורש חיבור לרשת. אפשר להקליד בינתיים.",
   "audio-capture": "לא נמצא מיקרופון פעיל.",
   unsupported: "הדפדפן הזה לא תומך בהקלטה. אפשר להקליד — זה עובד בדיוק אותו דבר.",
+  transcription: "התמלול נכשל (רשת או שירות). ההקלטה לא אבדה — אפשר לנסות שוב.",
   other: "התמלול נכשל. נסו שוב או הקלידו.",
 };
 
-const Ctx = createContext<SpeechController | null>(null);
+/** Remembers whether the server can transcribe, so the right engine is ready on the first tap. */
+const SERVER_STT_KEY = "rosh-shaket:server-stt";
 
-/** One recognizer for the whole app, so the center button and the Add screen share a session. */
+/** iPhone / iPad Safari, where the site's microphone permission is set per website. */
+export function isAppleMobile(): boolean {
+  if (typeof navigator === "undefined") return false;
+  return /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+}
+
+function makeController(serverStt: boolean): EngineController {
+  const deps = serverStt ? browserRecorderDeps() : null;
+  if (deps) return new RecorderController(deps);
+  return new SpeechController(browserRecognitionCtor(), undefined, !isAppleMobile());
+}
+
+const Ctx = createContext<EngineController | null>(null);
+
+/**
+ * One speech engine for the whole app, so the center button and the Add screen
+ * share a session. Prefers recording + server transcription when configured.
+ */
 export function SpeechProvider({ children }: { children: ReactNode }) {
-  const [controller] = useState(() => new SpeechController(browserRecognitionCtor()));
+  const [controller, setController] = useState<EngineController>(() => {
+    let cached = false;
+    try {
+      cached = localStorage.getItem(SERVER_STT_KEY) === "1";
+    } catch {}
+    return makeController(cached);
+  });
+
+  useEffect(() => {
+    let alive = true;
+    fetch("/api/status")
+      .then((r) => r.json())
+      .then((s: { transcription?: string | null }) => {
+        if (!alive) return;
+        const server = Boolean(s.transcription);
+        try {
+          localStorage.setItem(SERVER_STT_KEY, server ? "1" : "0");
+        } catch {}
+        const wantServer = server && browserRecorderDeps() !== null;
+        setController((c) => (c.engine === (wantServer ? "server" : "browser") || c.getSnapshot().status !== "idle" ? c : makeController(server)));
+      })
+      .catch(() => undefined);
+    return () => {
+      alive = false;
+    };
+  }, []);
+
   useEffect(() => () => controller.cancel(), [controller]);
   return <Ctx.Provider value={controller}>{children}</Ctx.Provider>;
 }
@@ -36,6 +82,7 @@ export function useSpeech() {
     stop: () => c.stop(),
     cancel: () => c.cancel(),
     take: () => c.take(),
+    retry: () => c.retry(),
     clearError: () => c.clearError(),
   };
 }
@@ -50,10 +97,4 @@ export function useElapsed(startedAt: number, active: boolean): number {
     return () => clearInterval(t);
   }, [active]);
   return active ? Math.max(0, Math.floor((now - startedAt) / 1000)) : 0;
-}
-
-/** iPhone / iPad Safari, where the site's microphone permission is set per website. */
-export function isAppleMobile(): boolean {
-  if (typeof navigator === "undefined") return false;
-  return /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
 }

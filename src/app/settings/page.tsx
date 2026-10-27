@@ -34,7 +34,7 @@ export default function SettingsPage() {
   const p = state.prefs;
   const set = (patch: Partial<Preferences>) => actions.setPrefs(patch);
   const [perm, setPerm] = useState<PermissionState>("default");
-  const [status, setStatus] = useState<{ extraction: "ai" | "rules"; model: string | null } | null>(null);
+  const [status, setStatus] = useState<{ extraction: "ai" | "rules"; model: string | null; transcription: "openai" | "elevenlabs" | null } | null>(null);
   const [testResult, setTestResult] = useState<string | null>(null);
   const [confirmWipe, setConfirmWipe] = useState(false);
 
@@ -157,7 +157,16 @@ export default function SettingsPage() {
       <SectionTitle>זיהוי דיבור ושפה</SectionTitle>
       <Card className="grid gap-2">
         <p>
-          תמלול: <strong>מנוע הדיבור של הדפדפן</strong> (עברית).
+          תמלול:{" "}
+          <strong>
+            {status == null
+              ? "בבדיקה…"
+              : status.transcription === "openai"
+                ? "הקלטה ותמלול בשרת (OpenAI)"
+                : status.transcription === "elevenlabs"
+                  ? "הקלטה ותמלול בשרת (ElevenLabs)"
+                  : "מנוע הדיבור של הדפדפן"}
+          </strong>
         </p>
         <p>
           הבנת המשפטים:{" "}
@@ -185,7 +194,11 @@ export default function SettingsPage() {
       <Card className="grid gap-3">
         <ul className="grid list-disc gap-1 ps-5 text-[0.98rem]">
           <li>המיקרופון נפתח רק כשמקישים עליו. אין הקלטה ברקע.</li>
-          <li>ההקלטה עצמה לא נשמרת. התמלול נעשה על ידי שירות הדיבור של הדפדפן (בכרום — של Google).</li>
+          <li>
+            {status?.transcription
+              ? `ההקלטה נשלחת לתמלול ל־${status.transcription === "openai" ? "OpenAI" : "ElevenLabs"} ואינה נשמרת אצלנו; המיקרופון נסגר מיד בסיום ההקלטה.`
+              : "ההקלטה עצמה לא נשמרת. התמלול נעשה על ידי שירות הדיבור של הדפדפן (בכרום — Google, באייפון — Apple)."}
+          </li>
           <li>הטקסט נשלח לפענוח{status?.extraction === "ai" ? " ל־Claude של Anthropic" : ""} ולא נשמר בשרת שלנו. תוכן אישי לא נכתב ללוגים.</li>
           <li>כל הפריטים נשמרים רק במכשיר הזה. אין חשבון ואין עותק בשרת.</li>
         </ul>

@@ -19,6 +19,22 @@ const SAMPLE = "מחר בשלוש פגישה עם דני במשרד, שעה בע
 
 type Phase = "input" | "extracting" | "review";
 
+/** Live microphone level, so it's visible that the app is hearing you. */
+function LevelBars({ level }: { level: number }) {
+  const weights = [0.5, 0.8, 1, 0.8, 0.5];
+  return (
+    <span className="flex h-8 items-center gap-1" aria-hidden>
+      {weights.map((w, i) => (
+        <span
+          key={i}
+          className="w-1.5 rounded-full bg-accent transition-[height] duration-100"
+          style={{ height: `${Math.max(15, Math.min(100, level * w * 140))}%` }}
+        />
+      ))}
+    </span>
+  );
+}
+
 function formatElapsed(s: number) {
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
 }
@@ -91,7 +107,8 @@ function AddInner() {
   useEffect(() => {
     if (speech.status === "idle" && speech.text) {
       const heard = speech.take();
-      setText((t) => (t ? `${t} ${heard}` : heard));
+      // Each recording on its own line, so separate utterances stay separate items.
+      setText((t) => (t ? `${t.trimEnd()}\n${heard}` : heard));
       source.current = "voice";
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -236,7 +253,7 @@ function AddInner() {
             <button
               type="button"
               onClick={recording ? speech.stop : speech.start}
-              disabled={speech.status === "stopping"}
+              disabled={speech.status === "stopping" || speech.status === "transcribing"}
               aria-pressed={recording}
               aria-label={recording ? "עצירת ההקלטה" : "התחלת הקלטה"}
               className={cx(
@@ -252,8 +269,11 @@ function AddInner() {
                   <span className="inline-block h-2.5 w-2.5 rounded-full bg-danger" aria-hidden />
                   מקליט <span className="ltr-nums">{formatElapsed(elapsed)}</span>
                 </span>
-              ) : speech.status === "stopping" ? (
-                <span className="text-muted">מסיים תמלול…</span>
+              ) : speech.status === "stopping" || speech.status === "transcribing" ? (
+                <span className="flex items-center gap-2 font-medium text-accent-strong">
+                  <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-accent border-t-transparent" aria-hidden />
+                  מתמלל…
+                </span>
               ) : (
                 <span className="text-muted">הקשה אחת כדי לדבר, הקשה נוספת לסיום</span>
               )}
@@ -267,11 +287,29 @@ function AddInner() {
         ) : (
           <Notice>{SPEECH_ERROR_TEXT.unsupported}</Notice>
         )}
-        {speech.error && <Notice tone="warn">{SPEECH_ERROR_TEXT[speech.error]}</Notice>}
+        {speech.error && (
+          <Notice tone="warn">
+            {SPEECH_ERROR_TEXT[speech.error]}
+            {speech.canRetry && (
+              <div className="mt-2">
+                <Button size="sm" variant="primary" onClick={speech.retry}>
+                  לנסות שוב לתמלל
+                </Button>
+              </div>
+            )}
+          </Notice>
+        )}
         {speech.supported && <MicPermissionTip forceOpen={speech.error === "not-allowed"} />}
       </div>
 
-      {(recording || speech.status === "stopping") && (
+      {recording && speech.engine === "server" && (
+        <div className="mb-3 flex min-h-14 items-center gap-3 rounded-2xl bg-sunken px-4 py-3" aria-live="polite">
+          <LevelBars level={speech.level} />
+          <span className="text-muted">מקשיב — מדברים בחופשיות, הטקסט יופיע כשתסיימו</span>
+        </div>
+      )}
+
+      {(recording || speech.status === "stopping") && speech.engine === "browser" && (
         <p className="mb-3 min-h-14 rounded-2xl bg-sunken px-4 py-3 text-lg" aria-live="polite">
           {speech.text || speech.interim ? (
             <>

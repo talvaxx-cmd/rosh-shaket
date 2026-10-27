@@ -25,8 +25,8 @@ export interface RecognitionLike {
 
 export type RecognitionCtor = new () => RecognitionLike;
 
-export type SpeechStatus = "idle" | "starting" | "recording" | "stopping";
-export type SpeechError = "not-allowed" | "no-speech" | "network" | "audio-capture" | "unsupported" | "other";
+export type SpeechStatus = "idle" | "starting" | "recording" | "stopping" | "transcribing";
+export type SpeechError = "not-allowed" | "no-speech" | "network" | "audio-capture" | "unsupported" | "transcription" | "other";
 
 export interface SpeechSnapshot {
   status: SpeechStatus;
@@ -36,6 +36,26 @@ export interface SpeechSnapshot {
   interim: string;
   error: SpeechError | null;
   startedAt: number;
+  /** Microphone input level 0..1 (server engine only). */
+  level: number;
+  /** A recording is kept after a failed transcription and can be re-sent. */
+  canRetry: boolean;
+  /** "browser" = Web Speech API, "server" = recorded audio transcribed on the server. */
+  engine: "browser" | "server";
+}
+
+/** What the app needs from either speech engine. */
+export interface EngineController {
+  readonly engine: "browser" | "server";
+  readonly supported: boolean;
+  subscribe(l: () => void): () => void;
+  getSnapshot(): SpeechSnapshot;
+  start(): void;
+  stop(): void;
+  cancel(): void;
+  take(): string;
+  retry(): void;
+  clearError(): void;
 }
 
 const MAX_RESTARTS = 60;
@@ -55,7 +75,8 @@ function join(a: string, b: string): string {
   return [a.trim(), b.trim()].filter(Boolean).join(" ");
 }
 
-export class SpeechController {
+export class SpeechController implements EngineController {
+  readonly engine = "browser" as const;
   private rec: RecognitionLike | null = null;
   private listeners = new Set<() => void>();
   private want = false;
@@ -70,9 +91,14 @@ export class SpeechController {
   private stopTimer: ReturnType<typeof setTimeout> | null = null;
   private snap: SpeechSnapshot;
 
+  /**
+   * @param autoRestart keep listening after the browser's own pause. Off on iPhone,
+   *   where every restart makes Safari ask for the microphone again.
+   */
   constructor(
     private readonly ctor: RecognitionCtor | null,
     private readonly now: () => number = () => Date.now(),
+    private readonly autoRestart = true,
   ) {
     this.snap = this.build();
   }
@@ -97,6 +123,9 @@ export class SpeechController {
       interim: this.sessionInterim,
       error: this.error,
       startedAt: this.startedAt,
+      level: 0,
+      canRetry: false,
+      engine: this.engine,
     };
   }
 
@@ -159,7 +188,7 @@ export class SpeechController {
     }
 
     const withinLimits = this.restarts < MAX_RESTARTS && this.now() - this.startedAt < MAX_SESSION_MS;
-    if (this.want && withinLimits) {
+    if (this.want && this.autoRestart && withinLimits) {
       this.restarts++;
       setTimeout(() => {
         if (!this.want) return this.finish();
@@ -244,6 +273,9 @@ export class SpeechController {
     this.emit();
     return t;
   }
+
+  /** Nothing to re-send: the browser engine keeps no audio. */
+  retry() {}
 
   clearError() {
     this.error = null;

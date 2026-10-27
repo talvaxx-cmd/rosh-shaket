@@ -16,13 +16,15 @@ npm test                     # בדיקות הקבלה
 npm run build
 ```
 
+**תמלול:** כדי שההקלטה תעבוד היטב באייפון, מגדירים `OPENAI_API_KEY` (מומלץ) או `ELEVENLABS_API_KEY`. ההקלטה נשלחת לשירות לתמלול בלבד ולא נשמרת.
+
 בלי `ANTHROPIC_API_KEY` האפליקציה עובדת במלואה עם מנתח עברית מבוסס כללים. עם מפתח, הפענוח עובר דרך Claude (`claude-opus-5-5`, structured outputs). אם Claude לא זמין, המערכת חוזרת אוטומטית למנתח המקומי ומציגה על כך הודעה.
 
 ## ארכיטקטורה
 
 | שכבה | קבצים | תפקיד |
 |---|---|---|
-| תמלול | `src/lib/client/speech.ts` | Web Speech API ‏(`he-IL`). המיקרופון נפתח רק בהקשה, ותמיד יש חלופה בטקסט |
+| תמלול | `src/lib/client/recorder-controller.ts`, `src/app/api/transcribe`, `src/lib/client/speech-controller.ts` | כשמוגדר `OPENAI_API_KEY` או `ELEVENLABS_API_KEY`: הקלטה בדפדפן ותמלול בשרת, וזה עובד אמין גם באייפון. בלי מפתח: Web Speech API של הדפדפן. המיקרופון נפתח רק בהקשה, ותמיד יש חלופה בטקסט |
 | חילוץ שפה | `src/lib/extraction/claude.ts`, `rules-parser.ts` | **מציע** טיוטות בלבד, ואף פעם לא כותב |
 | שכבת כללים | `src/lib/extraction/validate.ts` | בדיקת שדות, עמימות, מועד שעבר, סמיכות לחצות והתנגשויות. זו הדרך היחידה מטיוטה לפריט |
 | מודל ומאגר | `src/lib/domain/*` | פעולות אטומיות עם `opId`, כך שניסיון חוזר לא יוצר כפילות. כל פעולה נרשמת בהיסטוריה וניתנת לביטול |

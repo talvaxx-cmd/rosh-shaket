@@ -68,7 +68,10 @@ function MicButton() {
       speech.stop();
       return;
     }
-    if (speech.status === "stopping") return;
+    if (speech.status === "stopping" || speech.status === "transcribing") {
+      if (!onAdd) router.push("/add");
+      return;
+    }
     if (speech.supported) speech.start();
     if (!onAdd) router.push("/add");
   };
@@ -93,7 +96,7 @@ function MicButton() {
         {speech.recording ? <Icon.Stop size={28} /> : <Icon.Mic size={30} />}
       </span>
       <span className={cx("text-[0.8rem] leading-none", speech.recording ? "font-semibold text-accent-strong" : "text-muted")}>
-        {speech.recording ? "עצירה" : "הוספה בקול"}
+        {speech.recording ? "עצירה" : speech.status === "transcribing" ? "מתמלל…" : "הוספה בקול"}
       </span>
     </button>
   );

@@ -15,7 +15,9 @@ export function normalize(text: string): string {
     .replace(/[״“”]/g, '"')
     .replace(/[׳‘’]/g, "'")
     .replace(/־/g, "-")
-    .replace(/\s+/g, " ")
+    // Collapse spaces but keep line breaks: a new line separates items.
+    .replace(/[^\S\n]+/g, " ")
+    .replace(/ *\n[\s]*/g, "\n")
     .trim();
 }
 
