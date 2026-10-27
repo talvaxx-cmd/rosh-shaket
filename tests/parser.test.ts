@@ -142,3 +142,12 @@ describe("separate recordings", () => {
     expect(items.map((i) => i.title)).toEqual(["לקנות חלב", "לתאם טכנאי"]);
   });
 });
+
+describe("clock notation", () => {
+  it("'10:00' and '22:00' are explicit; a bare hour still asks", () => {
+    expect(parse("מחר ב-10:00 תור לרופא שיניים")[0]!.time).toBe("10:00");
+    expect(parse("מחר ב-22:00 שיחה עם אבא")[0]!.time).toBe("22:00");
+    expect(parse("מחר בשעה 10 תור לרופא")[0]!.time).toBeNull();
+    expect(parse("מחר ב-3:30 פגישה")[0]!.time).toBeNull();
+  });
+});

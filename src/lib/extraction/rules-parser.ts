@@ -264,8 +264,9 @@ function parseTime(text: string): Found<TimeInfo | null> {
     if (r.match[3]?.includes("ורבע")) min = 15;
     if (h <= 24 && min < 60) {
       const approx = /בסביבות|בערך/.test(r.match[0]);
-      // Leading zero ("09:00") or 24h ("15:00") is explicit.
-      const explicit = raw.length === 2 && raw.startsWith("0");
+      // Clock notation is the 24-hour clock: "09:00", "10:00", "22:00" are explicit.
+      // A bare hour ("ב-3", "בשעה 10") or a single digit with minutes ("3:30") still asks.
+      const explicit = raw.length === 2 && (raw.startsWith("0") || r.match[2] != null);
       const hours = explicit ? [h] : resolveHour(h % 24, p.period);
       const options = hours.map((x) => hm(x, min));
       return {

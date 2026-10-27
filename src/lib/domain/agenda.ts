@@ -116,3 +116,38 @@ export function overlapTitles(entries: AgendaEntry[]): Map<string, string> {
   }
   return out;
 }
+
+/** A task with a deadline time, placed on the timeline at that time. */
+export type DueEntry = { type: "due"; id: string; task: Task; start: string; end: string };
+export type CalendarRow = AgendaEntry | DueEntry;
+
+export interface CalendarDay {
+  /** Events, scheduled tasks and tasks due at a set time — in time order. */
+  timeline: CalendarRow[];
+  /** Tasks for this day without a time ("לעשות היום"). */
+  allDay: Task[];
+  /** Open tasks with no date at all — shown on today so nothing gets lost. */
+  undated: Task[];
+}
+
+/**
+ * Everything the calendar shows for one day. Rule for the user: anything with a
+ * date is in the calendar; things without a date wait on today until done or dated.
+ */
+export function calendarDay(state: AppState, ymd: Ymd, tz: string, today: Ymd): CalendarDay {
+  const timeline: CalendarRow[] = agendaForDay(state, ymd, tz).filter((e) => e.type === "event" || e.task.status !== "dropped");
+  const allDay: Task[] = [];
+  for (const t of tasks(state)) {
+    if (t.status !== "open" || t.scheduled || taskDueYmd(t, tz) !== ymd) continue;
+    if (t.dueIsDateOnly) allDay.push(t);
+    else timeline.push({ type: "due", id: t.id, task: t, start: t.due!, end: t.due! });
+  }
+  timeline.sort((a, b) => a.start.localeCompare(b.start) || (a.type === "event" ? -1 : 1));
+  const undated =
+    ymd === today
+      ? tasks(state)
+          .filter((t) => t.status === "open" && !t.due && !t.scheduled)
+          .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
+      : [];
+  return { timeline, allDay, undated };
+}

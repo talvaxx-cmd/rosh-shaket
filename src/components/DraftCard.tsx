@@ -84,6 +84,9 @@ export function DraftCard({
           משימה
         </Chip>
       </div>
+      <p className="-mt-1 mb-3 text-sm text-muted">
+        {d.kind === "event" ? "פגישה, תור או שיחה בשעה קבועה. מופיע ביומן בשעה שלו." : "משהו לעשות. עם תאריך — מופיע ביומן באותו יום; בלי תאריך — מחכה ביומן של היום."}
+      </p>
 
       <div className="grid gap-3">
         <Field label="כותרת" htmlFor={id("title")}>

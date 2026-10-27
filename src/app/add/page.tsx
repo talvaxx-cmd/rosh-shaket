@@ -20,7 +20,7 @@ const DRAFT_KEY = "rosh-shaket:draft";
 function savedMessage(list: DraftItem[], today: string): string {
   const where = (d: DraftItem) => {
     if (d.kind === "event") return `${d.date ? relativeDayHe(d.date, today) : ""}${d.time ? ` ב־${d.time}` : ""}, ביומן`;
-    if (d.kind === "task") return !d.date ? "במשימות, בלי תאריך" : d.date === today ? "במשימות של היום" : `במשימות, ${relativeDayHe(d.date, today)}`;
+    if (d.kind === "task") return !d.date ? "ביומן של היום (בלי תאריך)" : `ביומן, ${relativeDayHe(d.date, today)}${d.time ? ` עד ${d.time}` : ""}`;
     return "ב״דורש טיפול״";
   };
   if (list.length === 1) return `נשמר ״${list[0]!.title}״ — ${where(list[0]!)}`;

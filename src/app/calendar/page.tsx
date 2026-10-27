@@ -5,9 +5,8 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useMemo } from "react";
 import { AgendaList, AgendaRow, TaskRow } from "@/components/AgendaRow";
 import { Icon, cx } from "@/components/ui";
-import { agendaForDay, overlapTitles, taskDueYmd, type AgendaEntry } from "@/lib/domain/agenda";
-import { tasks as allTasks } from "@/lib/domain/store-core";
-import type { AppState, Task } from "@/lib/domain/types";
+import { calendarDay, overlapTitles, type AgendaEntry } from "@/lib/domain/agenda";
+import type { AppState } from "@/lib/domain/types";
 import { useAppState, useNow } from "@/lib/client/store";
 import { HEBREW_WEEKDAYS, addDaysYmd, formatYmdHe, isYmd, parseYmd, toHm, toYmd, weekdayOfYmd, type Ymd } from "@/lib/time";
 
@@ -31,11 +30,6 @@ function weekRangeLabel(start: Ymd): string {
   return `${a.d} ${MONTHS_IN[a.m - 1]} – ${b.d} ${MONTHS_IN[b.m - 1]}`;
 }
 
-/** Open tasks due on a day that have no time slot — shown under that day's timeline. */
-function dueTasksOn(state: AppState, ymd: Ymd, tz: string): Task[] {
-  return allTasks(state).filter((t) => t.status === "open" && !t.scheduled && taskDueYmd(t, tz) === ymd);
-}
-
 function TodayTag() {
   return <span className="rounded-full bg-accent-soft px-2 py-0.5 text-[0.8rem] font-medium text-accent-strong">היום</span>;
 }
@@ -43,7 +37,7 @@ function TodayTag() {
 function EmptyDay({ ymd, isToday }: { ymd: Ymd; isToday: boolean }) {
   return (
     <div className="rounded-2xl border border-line bg-surface px-4 py-5 text-center">
-      <p className="font-medium">אין אירועים או משימות מתוזמנים {isToday ? "להיום" : "ליום הזה"}</p>
+      <p className="font-medium">אין כלום {isToday ? "להיום" : "ביום הזה"}</p>
       <p className="mt-1 text-[0.95rem] text-muted">אפשר להוסיף בהקלדה או בקול — למשל ״מחר בתשע פגישה עם דני״.</p>
       <Link
         href={`/add?manual=event&date=${ymd}`}
@@ -57,29 +51,43 @@ function EmptyDay({ ymd, isToday }: { ymd: Ymd; isToday: boolean }) {
 
 function DayAgenda({ state, ymd, today, now }: { state: AppState; ymd: Ymd; today: Ymd; now: Date }) {
   const tz = state.prefs.timeZone;
-  const entries = agendaForDay(state, ymd, tz);
-  const due = dueTasksOn(state, ymd, tz);
-  const overlap = overlapTitles(entries);
-  if (entries.length === 0 && due.length === 0) return <EmptyDay ymd={ymd} isToday={ymd === today} />;
+  const { timeline, allDay, undated } = calendarDay(state, ymd, tz, today);
+  const overlap = overlapTitles(timeline.filter((r): r is AgendaEntry => r.type !== "due"));
+  if (timeline.length === 0 && allDay.length === 0 && undated.length === 0) return <EmptyDay ymd={ymd} isToday={ymd === today} />;
   return (
-    <div className="grid gap-3">
-      {entries.length > 0 && (
-        <AgendaList label="סדר היום">
-          {entries.map((e) => (
-            <AgendaRow key={`${e.type}:${e.id}:${e.start}`} entry={e} timeZone={tz} now={now} overlapsWith={overlap.get(`${e.id}:${e.start}`)} />
-          ))}
-        </AgendaList>
-      )}
-      {due.length > 0 && (
-        <section aria-label="משימות ליום הזה, בלי שעה">
-          <h3 className="mb-1 text-sm font-medium text-muted">משימות ליום הזה · בלי שעה</h3>
+    <div className="grid gap-4">
+      {allDay.length > 0 && (
+        <section aria-label="לעשות ביום הזה">
+          <h3 className="mb-1.5 text-sm font-bold text-muted">{ymd === today ? "לעשות היום" : "לעשות ביום הזה"}</h3>
           <AgendaList>
-            {due.map((t) => (
-              <TaskRow
-                key={t.id}
-                task={t}
-                meta={!t.dueIsDateOnly && t.due ? <>משימה · עד <span className="ltr-nums">{toHm(new Date(t.due), tz)}</span></> : "משימה · בלי שעה"}
-              />
+            {allDay.map((t) => (
+              <TaskRow key={t.id} task={t} meta={t.importance === "high" ? "משימה · חשוב" : "משימה"} />
+            ))}
+          </AgendaList>
+        </section>
+      )}
+      <section aria-label="לפי שעה">
+        {(allDay.length > 0 || undated.length > 0) && <h3 className="mb-1.5 text-sm font-bold text-muted">לפי שעה</h3>}
+        {timeline.length > 0 ? (
+          <AgendaList label="סדר היום">
+            {timeline.map((r) =>
+              r.type === "due" ? (
+                <TaskRow key={`due:${r.id}`} task={r.task} time={toHm(new Date(r.start), tz)} late={new Date(r.start) < now} meta={new Date(r.start) < now ? "משימה · המועד עבר" : `משימה · עד ${toHm(new Date(r.start), tz)}`} />
+              ) : (
+                <AgendaRow key={`${r.type}:${r.id}:${r.start}`} entry={r} timeZone={tz} now={now} overlapsWith={overlap.get(`${r.id}:${r.start}`)} />
+              ),
+            )}
+          </AgendaList>
+        ) : (
+          <p className="rounded-[var(--radius-card)] border border-line bg-surface px-4 py-3 text-muted">אין פגישות או משימות בשעה מסוימת.</p>
+        )}
+      </section>
+      {undated.length > 0 && (
+        <section aria-label="משימות בלי תאריך">
+          <h3 className="mb-1.5 text-sm font-bold text-muted">בלי תאריך · מחכות כאן עד שיבוצעו</h3>
+          <AgendaList>
+            {undated.map((t) => (
+              <TaskRow key={t.id} task={t} meta="משימה · אפשר לקבוע לה יום בלחיצה עליה" />
             ))}
           </AgendaList>
         </section>
@@ -88,14 +96,15 @@ function DayAgenda({ state, ymd, today, now }: { state: AppState; ymd: Ymd; toda
   );
 }
 
-function WeekRow({ ymd, entries, dueCount, isToday, onOpen, tz }: { ymd: Ymd; entries: AgendaEntry[]; dueCount: number; isToday: boolean; onOpen: () => void; tz: string }) {
-  const empty = entries.length === 0 && dueCount === 0;
+function WeekRow({ ymd, day, isToday, onOpen, tz }: { ymd: Ymd; day: ReturnType<typeof calendarDay>; isToday: boolean; onOpen: () => void; tz: string }) {
+  const count = day.timeline.length + day.allDay.length;
+  const empty = count === 0;
   return (
     <li>
       <button
         type="button"
         onClick={onOpen}
-        aria-label={`${formatYmdHe(ymd)}${isToday ? " (היום)" : ""}: ${empty ? "אין פריטים מתוזמנים" : `${entries.length} פריטים`}`}
+        aria-label={`${formatYmdHe(ymd)}${isToday ? " (היום)" : ""}: ${empty ? "אין פריטים" : `${count} פריטים`}`}
         className={cx(
           "flex w-full items-start gap-3 rounded-xl border bg-surface px-3 text-start hover:bg-sunken",
           empty ? "py-2" : "py-2.5",
@@ -113,10 +122,18 @@ function WeekRow({ ymd, entries, dueCount, isToday, onOpen, tz }: { ymd: Ymd; en
             </span>
           )}
           {empty ? (
-            <span className="block pt-0.5 text-[0.95rem] text-muted">אין פריטים מתוזמנים</span>
+            <span className="block pt-0.5 text-[0.95rem] text-muted">אין פריטים</span>
           ) : (
             <span className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-1">
-              {entries.map((e) => (
+              {day.allDay.map((t) => (
+                <span key={`ad:${t.id}`} className="flex min-w-0 items-center gap-2 text-[0.95rem]">
+                  <span className="w-11 shrink-0 text-sm text-muted">היום</span>
+                  <span className="h-3.5 w-3.5 shrink-0 rounded-full border-2 border-muted" aria-hidden />
+                  <span className="sr-only">משימה:</span>
+                  <span className="min-w-0 truncate">{t.title}</span>
+                </span>
+              ))}
+              {day.timeline.map((e) => (
                 <span key={`${e.type}:${e.id}:${e.start}`} className="flex min-w-0 items-center gap-2 text-[0.95rem]">
                   <span className="w-11 shrink-0 text-muted ltr-nums">{toHm(new Date(e.start), tz)}</span>
                   {e.type === "event" ? (
@@ -124,10 +141,10 @@ function WeekRow({ ymd, entries, dueCount, isToday, onOpen, tz }: { ymd: Ymd; en
                   ) : (
                     <span className="h-3.5 w-3.5 shrink-0 rounded-full border-2 border-muted" aria-hidden />
                   )}
+                  <span className="sr-only">{e.type === "event" ? "אירוע:" : "משימה:"}</span>
                   <span className="min-w-0 truncate">{e.type === "event" ? e.occ.title : e.task.title}</span>
                 </span>
               ))}
-              {dueCount > 0 && <span className="text-sm text-muted">+ {dueCount === 1 ? "משימה אחת" : `${dueCount} משימות`} בלי שעה</span>}
             </span>
           )}
         </span>
@@ -158,8 +175,8 @@ function CalendarInner() {
 
   const byDay = useMemo(() => {
     const days = view === "month" ? monthCells : view === "week" ? weekDays : [];
-    return Object.fromEntries(days.map((d) => [d, { entries: agendaForDay(state, d, tz), due: dueTasksOn(state, d, tz).length }]));
-  }, [state, tz, view, monthCells, weekDays]);
+    return Object.fromEntries(days.map((d) => [d, calendarDay(state, d, tz, today)]));
+  }, [state, tz, view, monthCells, weekDays, today]);
 
   const step = (dir: 1 | -1) => {
     if (view === "day") go(view, addDaysYmd(day, dir));
@@ -226,7 +243,7 @@ function CalendarInner() {
       {view === "week" && (
         <ul className="grid gap-1.5">
           {weekDays.map((d) => (
-            <WeekRow key={d} ymd={d} entries={byDay[d]?.entries ?? []} dueCount={byDay[d]?.due ?? 0} isToday={d === today} tz={tz} onOpen={() => go("day", d)} />
+            <WeekRow key={d} ymd={d} day={byDay[d] ?? { timeline: [], allDay: [], undated: [] }} isToday={d === today} tz={tz} onOpen={() => go("day", d)} />
           ))}
         </ul>
       )}
@@ -241,8 +258,8 @@ function CalendarInner() {
             ))}
             {monthCells.map((d) => {
               const info = byDay[d];
-              const ev = info?.entries.filter((e) => e.type === "event").length ?? 0;
-              const tk = (info?.entries.length ?? 0) - ev + (info?.due ?? 0);
+              const ev = info?.timeline.filter((e) => e.type === "event").length ?? 0;
+              const tk = (info?.timeline.length ?? 0) - ev + (info?.allDay.length ?? 0);
               const inMonth = d.slice(0, 7) === monthFirst.slice(0, 7);
               const selected = d === day;
               const isToday = d === today;

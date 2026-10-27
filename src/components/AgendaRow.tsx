@@ -111,11 +111,12 @@ export function AgendaRow({
   );
 }
 
-/** A task without a time slot (due today, undated, or overdue). */
-export function TaskRow({ task, meta, late }: { task: Task; meta: ReactNode; late?: boolean }) {
+/** A task without a time slot (due today, undated, or overdue). With `time`, it sits in the timeline column. */
+export function TaskRow({ task, meta, late, time }: { task: Task; meta: ReactNode; late?: boolean; time?: string }) {
   const done = task.status === "done";
   return (
     <li className="flex min-h-14 items-start gap-3 px-4 py-3">
+      {time && <span className="w-12 shrink-0 pt-0.5 font-medium text-ink ltr-nums">{time}</span>}
       <TaskCheck task={task} />
       <Link href={`/item/${task.id}`} className="min-w-0 flex-1">
         <span className={cx("block font-medium", done && "text-muted line-through")}>{task.title}</span>
